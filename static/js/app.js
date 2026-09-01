@@ -1,0 +1,207 @@
+const map = L.map('map', {zoomControl:true}).setView([43.72,-79.46], 10);
+L.control.scale({metric:true, imperial:false, position:'bottomleft', maxWidth:150}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+setTimeout(()=>{
+  const pane = document.querySelector('.leaflet-tile-pane');
+  if(pane) pane.style.filter = 'invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9)';
+},50);
+
+let NETWORK = null; // {nodes, edges}
+let originLatLng = null, originMarker=null, destMarker=null, currentTimes=null;
+let stage = 'origin';
+const nodeMarkers = {};
+let routeLayer = L.layerGroup().addTo(map);
+let radarOn = true;
+const heatLayer = L.heatLayer([], {
+  radius: 30, blur: 34, maxZoom: 16, minOpacity: 0.06,
+  gradient: {0.15:'rgba(79,182,255,0.22)', 0.4:'rgba(79,182,255,0.32)',
+             0.65:'rgba(240,211,58,0.32)', 0.85:'rgba(178,58,58,0.32)', 1:'rgba(178,58,58,0.4)'}
+}).addTo(map);
+
+function fmtKm(km){ return km < 1 ? Math.round(km*1000)+' m' : km.toFixed(1)+' km'; }
+function lerpColor(f){
+  const stops=[[57,182,255],[240,211,58],[178,58,58]];
+  let a,b,lf;
+  if(f<0.5){a=stops[0];b=stops[1];lf=f/0.5;} else {a=stops[1];b=stops[2];lf=(f-0.5)/0.5;}
+  const r=Math.round(a[0]+(b[0]-a[0])*lf), g=Math.round(a[1]+(b[1]-a[1])*lf), bl=Math.round(a[2]+(b[2]-a[2])*lf);
+  return `rgb(${r},${g},${bl})`;
+}
+
+async function loadNetwork(){
+  const res = await fetch('/api/network');
+  NETWORK = await res.json();
+  drawNetwork();
+  document.getElementById('modeflagText').textContent = 'Click the map to set a start point';
+  setOrigin(43.6453, -79.3806); // Union Station
+}
+
+function drawNetwork(){
+  NETWORK.edges.forEach(([a,b,min,line])=>{
+    const na = NETWORK.nodes[a], nb = NETWORK.nodes[b];
+    if(!na || !nb) return;
+    let color = '#4fb6c4', weight=2.5, opacity=0.45, dash=null;
+    if(line && line.startsWith('Line 1')) { color='#f0a93a'; weight=5; opacity=0.85; }
+    else if(line && line.startsWith('Line 2')) { color='#3aa65c'; weight=5; opacity=0.85; }
+    else if(line && line.startsWith('YRT')) { color='#8e44ad'; weight=3; opacity=0.7; dash='6 6'; }
+    else if(line && line.includes('Hwy') && line.startsWith('MiWay')) { color='#b8860b'; weight=2.8; opacity=0.7; dash='3 5'; }
+    else if(line && line.startsWith('MiWay')) { color='#d97706'; weight=3; opacity=0.7; dash='6 6'; }
+    else if(line && line.startsWith('GO')) { color='#0f7a6c'; weight=3.5; opacity=0.75; dash='2 8'; }
+    L.polyline([[na.lat,na.lon],[nb.lat,nb.lon]], {color, weight, opacity, dashArray:dash}).addTo(map);
+  });
+}
+
+function buildHeatPoints(){
+  const shade = parseFloat(document.getElementById('shadeSlider').value)/100;
+  const times = currentTimes || {};
+  const vals = Object.values(times);
+  const maxT = vals.length ? Math.max(...vals) : 60;
+  function inten(t){
+    const v = (t==null) ? 0.35 : Math.max(0.06, 1 - Math.min(1, t/maxT));
+    return Math.min(1, v) * shade;
+  }
+  const pts = [];
+  Object.entries(NETWORK.nodes).forEach(([id,n])=>{
+    pts.push([n.lat, n.lon, Math.min(1, inten(times[id]) + 0.12)]);
+  });
+  const seen = new Set();
+  NETWORK.edges.forEach(([a,b])=>{
+    const key = a<b ? a+'|'+b : b+'|'+a;
+    if(seen.has(key)) return; seen.add(key);
+    const na = NETWORK.nodes[a], nb = NETWORK.nodes[b];
+    if(!na || !nb) return;
+    const ta = times[a], tb = times[b];
+    for(let s=1;s<=3;s++){
+      const t = s/4;
+      const lat = na.lat+(nb.lat-na.lat)*t, lon = na.lon+(nb.lon-na.lon)*t;
+      const tt = (ta!=null && tb!=null) ? ta+(tb-ta)*t : null;
+      pts.push([lat, lon, inten(tt)]);
+    }
+  });
+  return pts;
+}
+function refreshHeatRadar(){ heatLayer.setLatLngs(buildHeatPoints()); }
+
+document.getElementById('radarBtn').addEventListener('click', ()=>{
+  radarOn = !radarOn;
+  document.getElementById('radarBtn').textContent = 'Heat radar: ' + (radarOn?'ON':'OFF');
+  if(radarOn){ refreshHeatRadar(); map.addLayer(heatLayer); } else { map.removeLayer(heatLayer); }
+});
+document.getElementById('shadeSlider').addEventListener('input', (e)=>{
+  document.getElementById('valShade').textContent = e.target.value+'%';
+  if(radarOn) refreshHeatRadar();
+});
+
+function paintNodes(){
+  if(!currentTimes) return;
+  const cutoff = parseFloat(document.getElementById('slider').value);
+  let count=0;
+  Object.entries(currentTimes).forEach(([id,t])=>{
+    if(t<=cutoff) count++;
+    const color = t>cutoff ? '#2a2e33' : lerpColor(Math.min(1,t/cutoff));
+    const r = t>cutoff ? 4 : 7;
+    const n = NETWORK.nodes[id];
+    if(!nodeMarkers[id]){
+      nodeMarkers[id] = L.circleMarker([n.lat,n.lon], {radius:r, color:'#080a0d', weight:1,
+        fillColor:color, fillOpacity:0.9}).addTo(map).bindTooltip(`${n.name}: ${t.toFixed(1)} min`);
+    } else {
+      nodeMarkers[id].setStyle({fillColor:color, radius:r, fillOpacity:0.9, opacity:1});
+      nodeMarkers[id].setTooltipContent(`${n.name}: ${t.toFixed(1)} min`);
+    }
+  });
+  document.getElementById('stCount').textContent = count + ' of ' + Object.keys(NETWORK.nodes).length;
+}
+
+async function setOrigin(lat, lon){
+  stage = 'destination';
+  document.getElementById('modeflagText').textContent = 'Click again to set a destination';
+  document.getElementById('tripCard').style.display='none';
+  document.getElementById('filterCard').style.display='block';
+  routeLayer.clearLayers();
+  if(destMarker){ map.removeLayer(destMarker); destMarker=null; }
+  originLatLng = {lat, lon};
+  if(originMarker) map.removeLayer(originMarker);
+  originMarker = L.circleMarker([lat,lon], {radius:9, color:'#fff', weight:2,
+    fillColor:'#39b6ff', fillOpacity:1}).addTo(map);
+
+  const res = await fetch('/api/reach', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({lat, lon})});
+  currentTimes = await res.json();
+
+  let nearestId=null, nd=Infinity;
+  Object.entries(currentTimes).forEach(([id,t])=>{ if(t<nd){ nd=t; nearestId=id; } });
+  if(nearestId){
+    document.getElementById('stName').textContent = NETWORK.nodes[nearestId].name;
+    document.getElementById('stWalk').textContent = nd.toFixed(1)+' min';
+  }
+  paintNodes();
+  if(radarOn) refreshHeatRadar();
+}
+
+async function setDestination(lat, lon){
+  stage = 'origin';
+  document.getElementById('modeflagText').textContent = 'Click to start a new trip';
+  document.getElementById('filterCard').style.display='none';
+  document.getElementById('tripCard').style.display='block';
+  if(destMarker) map.removeLayer(destMarker);
+  destMarker = L.circleMarker([lat,lon], {radius:9, color:'#fff', weight:2,
+    fillColor:'#b23a3a', fillOpacity:1}).addTo(map);
+  Object.values(nodeMarkers).forEach(m=>m.setStyle({fillOpacity:0.25, opacity:0.4}));
+
+  const res = await fetch('/api/route', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({olat:originLatLng.lat, olon:originLatLng.lon, dlat:lat, dlon:lon})});
+  const route = await res.json();
+
+  routeLayer.clearLayers();
+  const LINE_COLORS = {};
+  NETWORK.edges.forEach(([a,b,min,line])=>{
+    if(!line) return;
+    if(line.startsWith('Line 1')) LINE_COLORS[line]='#f0a93a';
+    else if(line.startsWith('Line 2')) LINE_COLORS[line]='#3aa65c';
+    else if(line.startsWith('YRT')) LINE_COLORS[line]='#8e44ad';
+    else if(line.startsWith('MiWay')) LINE_COLORS[line]='#d97706';
+    else if(line.startsWith('GO')) LINE_COLORS[line]='#0f7a6c';
+  });
+
+  const ul = document.getElementById('steps'); ul.innerHTML='';
+  route.segments.forEach(seg=>{
+    const dist = fmtKm(seg.km);
+    let text;
+    if(seg.type==='walk') text = `Walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
+    else if(seg.type==='transfer') text = `Transfer, walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
+    else text = `Ride <b>${seg.line}</b> from ${seg.from.name} to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
+    const li = document.createElement('li'); li.innerHTML = text; ul.appendChild(li);
+
+    if(seg.type==='walk' || seg.type==='transfer'){
+      L.polyline([[seg.from.lat,seg.from.lon],[seg.to.lat,seg.to.lon]],
+        {color:'#dfe6ea', weight:3, dashArray: seg.type==='walk' ? '2 7':'1 5', opacity:0.85}).addTo(routeLayer);
+    } else {
+      L.polyline([[seg.from.lat,seg.from.lon],[seg.to.lat,seg.to.lon]],
+        {color: LINE_COLORS[seg.line] || '#4fb6c4', weight:6, opacity:0.95}).addTo(routeLayer);
+    }
+  });
+  document.getElementById('tripTotal').textContent = route.total.toFixed(1)+' min';
+  document.getElementById('tripDist').textContent = fmtKm(route.totalKm);
+}
+
+map.on('click', (e)=>{
+  if(!NETWORK) return;
+  const {lat, lng:lon} = e.latlng;
+  if(stage==='origin') setOrigin(lat,lon); else setDestination(lat,lon);
+});
+document.getElementById('newTripBtn').addEventListener('click', ()=>{
+  document.getElementById('tripCard').style.display='none';
+  document.getElementById('filterCard').style.display='block';
+  document.getElementById('modeflagText').textContent = 'Click the map to set a start point';
+  stage='origin';
+  routeLayer.clearLayers();
+  if(destMarker){ map.removeLayer(destMarker); destMarker=null; }
+  Object.values(nodeMarkers).forEach(m=>m.setStyle({opacity:1}));
+});
+document.getElementById('slider').addEventListener('input', (e)=>{
+  document.getElementById('valMin').textContent = e.target.value;
+  paintNodes();
+});
+
+loadNetwork();

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Toronto Transit Reach (Python)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Toronto Transit Reach<em>Python backend</em></h1>
+    <div class="sub">Classic OpenStreetMap tiles, no API key. Every travel time, route, and
+      heat-radar point is computed by a Python routing engine over the full TTC + YRT + MiWay
+      network. Click once for a start point, click again for a destination.</div>
+  </header>
+
+  <div class="board">
+    <div class="mapcard">
+      <div id="map"></div>
+      <div class="modeflag" id="modeflag"><span class="dot"></span><span id="modeflagText">Loading network…</span></div>
+    </div>
+
+    <div class="side">
+      <div class="section">
+        <h2>Heat radar</h2>
+        <button id="radarBtn">Heat radar: ON</button>
+        <div class="row" style="margin-top:12px;">
+          <span class="label">Shade level</span>
+          <span class="val" id="valShade" style="font-size:13px;">60%</span>
+        </div>
+        <input type="range" id="shadeSlider" min="10" max="100" step="5" value="60">
+      </div>
+
+      <div class="section" id="tripCard" style="display:none;">
+        <h2>Trip</h2>
+        <ul class="steps" id="steps"></ul>
+        <div class="stat"><span>Total time</span><b id="tripTotal">—</b></div>
+        <div class="stat"><span>Total distance</span><b id="tripDist">—</b></div>
+        <button class="secondary" id="newTripBtn">Start a new trip</button>
+      </div>
+
+      <div class="section" id="filterCard">
+        <h2>Time filter</h2>
+        <div class="row">
+          <span class="label">Reachable within</span>
+          <span class="val"><span id="valMin">30</span> min</span>
+        </div>
+        <input type="range" id="slider" min="5" max="90" step="5" value="30">
+        <div class="legend"></div>
+        <div class="legendLabels"><span>fast</span><span>slow</span><span>past cutoff</span></div>
+      </div>
+
+      <div class="section">
+        <h2>Nearest stop</h2>
+        <div class="stat"><span>Name</span><b id="stName">—</b></div>
+        <div class="stat"><span>Est. time</span><b id="stWalk">—</b></div>
+        <div class="stat"><span>Reachable stops</span><b id="stCount">—</b></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Fixed schematic network model (TTC subway/streetcar + YRT/Viva + MiWay + highway
+    corridor hubs) with typical dwell/wait/transfer times — not a live feed. All routing runs
+    in the Python backend; the browser only draws the results.</footer>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
