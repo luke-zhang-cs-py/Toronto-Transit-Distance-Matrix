@@ -170,7 +170,13 @@ async function setDestination(lat, lon){
     let text;
     if(seg.type==='walk') text = `Walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
     else if(seg.type==='transfer') text = `Transfer, walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
-    else text = `Ride <b>${seg.line}</b> from ${seg.from.name} to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
+    else {
+      // seg.wait is the platform time folded into this leg -- it is part of
+      // the leg's minutes, so say so rather than leaving the reader to
+      // wonder why the ride looks longer than the ride.
+      const wait = seg.wait ? ` incl. ${seg.wait.toFixed(0)} min wait ·` : '';
+      text = `Ride <b>${seg.line}</b> from ${seg.from.name} to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min ·${wait} ${dist}</span>`;
+    }
     const li = document.createElement('li'); li.innerHTML = text; ul.appendChild(li);
 
     if(seg.type==='walk' || seg.type==='transfer'){

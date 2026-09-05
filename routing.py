@@ -72,7 +72,7 @@ def path_km(points):
     km = 0.0
     for i in range(1, len(points)):
         km += haversine_km(points[i - 1]['lat'], points[i - 1]['lon'],
-                            points[i]['lat'], points[i]['lon'])
+                           points[i]['lat'], points[i]['lon'])
     return km
 
 
@@ -108,7 +108,7 @@ def build_route(olat, olon, dlat, dlon):
     first = nodes[chain_ids[0]]
     d0 = haversine_km(olat, olon, first['lat'], first['lon'])
     segments.append({'type': 'walk', 'from': {'lat': olat, 'lon': olon, 'name': 'Start'},
-                      'to': first, 'minutes': walk_minutes(d0), 'km': d0})
+                     'to': first, 'minutes': walk_minutes(d0), 'km': d0})
 
     i = 0
     while i < len(line_at_step):
@@ -130,8 +130,37 @@ def build_route(olat, olon, dlat, dlon):
     last = nodes[best_id]
     dlast = haversine_km(last['lat'], last['lon'], dlat, dlon)
     segments.append({'type': 'walk', 'from': last,
-                      'to': {'lat': dlat, 'lon': dlon, 'name': 'Destination'},
-                      'minutes': walk_minutes(dlast), 'km': dlast})
+                     'to': {'lat': dlat, 'lon': dlon, 'name': 'Destination'},
+                     'minutes': walk_minutes(dlast), 'km': dlast})
 
-    total_km = sum(seg['km'] for seg in segments)
-    return {'total': best_total, 'totalKm': total_km, 'segments': segments}
+    _charge_boarding_wait(segments, time[chain_ids[0]] - walk_minutes(d0))
+
+    # Summed from the parts rather than taken from Dijkstra's figure. The two
+    # used to be worked out separately and disagreed by exactly the boarding
+    # wait: best_total included it, no segment did, and the page prints both.
+    # A trip whose legs do not add up to its own total is the kind of wrong
+    # that makes a reader distrust every other number on the screen.
+    return {
+        'total': sum(seg['minutes'] for seg in segments),
+        'totalKm': sum(seg['km'] for seg in segments),
+        'segments': segments,
+    }
+
+
+def _charge_boarding_wait(segments, wait):
+    """Put the wait for the first vehicle on the leg it belongs to.
+
+    Dijkstra charges it when entering the network -- it is the difference
+    between the walk to the first stop and that stop's cost -- but it is not
+    walking time and it is not riding time, so it had nowhere to go and was
+    quietly dropped from the itinerary. It belongs to boarding, so it goes on
+    the first leg that is not a walk, labelled, so the leg can say how much
+    of itself is standing on a platform.
+    """
+    if wait <= 0:
+        return
+    for seg in segments:
+        if seg['type'] != 'walk':
+            seg['minutes'] += wait
+            seg['wait'] = wait
+            return

@@ -34,12 +34,60 @@ GTFS static feed either. See network/__init__.py for how to swap in
 real GTFS data later.
 """
 
+import math
+
 from flask import Flask, request, jsonify, render_template
 
 from network import nodes, adj
 from routing import compute_times, build_route
 
 app = Flask(__name__)
+
+# Anything outside these is not a place on Earth, and the maths downstream
+# will happily return a number for it rather than saying so.
+LAT_RANGE = (-90.0, 90.0)
+LON_RANGE = (-180.0, 180.0)
+
+
+class BadRequest(Exception):
+    """Something wrong with the request body that the caller can fix."""
+
+
+def _coord(body, key, low, high):
+    """One latitude or longitude out of the request body.
+
+    Every one of these used to be `float(body['lat'])` with nothing around
+    it, so a missing key, a null, a string, or a body that was not an object
+    all came back as a 500 with a stack trace. Two of them were worse than
+    that: float() accepts "nan" and "inf", and NaN then travels all the way
+    into the response, where jsonify writes a bare NaN token. That is not
+    valid JSON -- Python's parser tolerates it, and the browser's
+    JSON.parse throws, so the page breaks with an error about the response
+    rather than about the input.
+    """
+    if not isinstance(body, dict):
+        raise BadRequest("Body must be a JSON object.")
+    if key not in body:
+        raise BadRequest(f"'{key}' is required.")
+    try:
+        value = float(body[key])
+    except (TypeError, ValueError):
+        raise BadRequest(f"'{key}' must be a number.")
+    if not math.isfinite(value):
+        raise BadRequest(f"'{key}' must be a finite number.")
+    if not (low <= value <= high):
+        raise BadRequest(f"'{key}' must be between {low:g} and {high:g}.")
+    return value
+
+
+def _point(body, lat_key, lon_key):
+    return (_coord(body, lat_key, *LAT_RANGE),
+            _coord(body, lon_key, *LON_RANGE))
+
+
+@app.errorhandler(BadRequest)
+def _bad_request(exc):
+    return jsonify({'error': str(exc)}), 400
 
 
 @app.route('/')
@@ -66,18 +114,18 @@ def api_network():
 
 @app.route('/api/reach', methods=['POST'])
 def api_reach():
-    body = request.get_json(force=True)
-    lat, lon = float(body['lat']), float(body['lon'])
+    body = request.get_json(force=True, silent=True)
+    lat, lon = _point(body, 'lat', 'lon')
     times = compute_times(lat, lon)
     return jsonify({nid: round(t, 1) for nid, t in times.items()})
 
 
 @app.route('/api/route', methods=['POST'])
 def api_route():
-    body = request.get_json(force=True)
-    route = build_route(float(body['olat']), float(body['olon']),
-                         float(body['dlat']), float(body['dlon']))
-    return jsonify(route)
+    body = request.get_json(force=True, silent=True)
+    olat, olon = _point(body, 'olat', 'olon')
+    dlat, dlon = _point(body, 'dlat', 'dlon')
+    return jsonify(build_route(olat, olon, dlat, dlon))
 
 
 if __name__ == '__main__':

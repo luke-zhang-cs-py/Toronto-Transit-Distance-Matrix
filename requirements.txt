@@ -1,1 +1,4 @@
 Flask>=2.3
+
+# Tests only; the app itself needs nothing but Flask.
+pytest>=7.4

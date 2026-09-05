@@ -38,7 +38,7 @@ BATHURST_TRAM = [
 
 # ---- horizontal rows: 504 King / 501 Queen / 505 Dundas / 506 Carlton-College ----
 ROW_LINE_NAMES = {'king': '504 King', 'queen': '501 Queen', 'dundas': '505 Dundas',
-                   'college': '506 Carlton/College'}
+                  'college': '506 Carlton/College'}
 
 
 def _build_row(row_name):

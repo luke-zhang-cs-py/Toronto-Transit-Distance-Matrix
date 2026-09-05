@@ -4,7 +4,8 @@
 # environment.yml -- it uses requirements.txt -- so every run failed at the
 # dependency step. It also ran pytest against a repo with no tests.
 #
-# Same intent, pointed at what actually exists here.
+# Same intent, pointed at what actually exists here. It also ran pytest
+# against a repo with no tests -- there are tests now, so that part is back.
 
 name: Python Package
 
@@ -30,7 +31,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flake8
+          pip install flake8 pytest
 
       - name: Lint with flake8
         run: |
@@ -39,15 +40,9 @@ jobs:
           # Everything else is advisory.
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      - name: Check the app imports and the graph builds
-        run: |
-          python -c "
-          from network import nodes, adj
-          from routing import compute_times, build_route
-          assert len(nodes) > 0, 'no stops loaded'
-          assert len(adj) > 0, 'no edges loaded'
-          r = build_route(43.6452, -79.3806, 43.7615, -79.4111)
-          assert r['segments'], 'route produced no segments'
-          print(f'ok: {len(nodes)} stops, {sum(len(v) for v in adj.values()) // 2} edges')
-          print(f'sample route: {r[\"total\"]:.1f} min over {len(r[\"segments\"])} segments')
-          "
+      - name: Run tests
+        # Replaces the inline "does it import and produce a route" check that
+        # used to sit here. The suite asserts the same thing and rather more:
+        # that the graph is one connected network, that a trip's legs add up
+        # to its own total, and that a malformed request is a 400.
+        run: pytest -q

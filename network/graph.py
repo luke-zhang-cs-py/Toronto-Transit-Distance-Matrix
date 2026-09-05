@@ -7,6 +7,10 @@ calls add_node / add_edge / chain to add its own stations and lines
 into these same two dictionaries — nothing here is agency-specific.
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 WALK_KMH = 4.8          # average walking pace used everywhere
 TRANSFER = 3            # minutes penalty for a same-spot mode/line change
 WAIT_BY_MODE = {'subway': 4, 'tram': 6, 'yrt': 8, 'go': 20, 'miway': 10}
@@ -22,9 +26,20 @@ def add_node(nid, name, lat, lon, mode):
 
 
 def add_edge(a, b, minutes, line):
-    if a in nodes and b in nodes:
-        adj[a].append({'to': b, 'min': minutes, 'line': line})
-        adj[b].append({'to': a, 'min': minutes, 'line': line})
+    """Connect two existing stops, in both directions.
+
+    A missing endpoint used to be skipped in silence, so a mistyped station
+    id in any of the network modules produced a graph that was quietly
+    missing a link -- and the only symptom is a route that takes the long way
+    round, which looks like a modelling choice rather than a typo. It is
+    still not fatal (the rest of the map is worth building), but it says so.
+    """
+    if a not in nodes or b not in nodes:
+        log.warning("dropping %s edge %s->%s: %s not in the graph", line, a, b,
+                    a if a not in nodes else b)
+        return
+    adj[a].append({'to': b, 'min': minutes, 'line': line})
+    adj[b].append({'to': a, 'min': minutes, 'line': line})
 
 
 def chain(seq, hop, mode, line):
