@@ -17,7 +17,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app                                   # noqa: E402
-from network import nodes, adj, WAIT_BY_MODE          # noqa: E402
+from network import nodes, adj, WAIT_BY_MODE, DEFAULT_WAIT_MIN  # noqa: E402
 from routing import build_route, compute_times, haversine_km, walk_minutes  # noqa: E402
 
 # Somewhere central and somewhere north, far enough apart to need the subway.
@@ -57,9 +57,27 @@ def test_every_edge_goes_both_ways():
 
 
 def test_every_mode_has_a_wait_time():
-    """Anything missing falls back to a hardcoded 6 minutes, which is a
-    number nobody chose for it."""
+    """Anything missing falls back to DEFAULT_WAIT_MIN, which is a shrug, not
+    a measurement. Reaching it means somebody added a mode and forgot."""
     assert {n["mode"] for n in nodes.values()} <= set(WAIT_BY_MODE)
+    assert DEFAULT_WAIT_MIN > 0
+
+
+def test_no_stop_pair_is_joined_twice_by_the_same_line():
+    """add_edge appends without looking, so a station listed in two chains of
+    the same line would quietly get a parallel duplicate. Harmless to
+    Dijkstra, and it means the map draws over itself and every scan does the
+    work twice."""
+    for a, edges in adj.items():
+        keys = [(e["to"], e["line"]) for e in edges]
+        assert len(keys) == len(set(keys)), f"{a} has a duplicated edge"
+
+
+def test_two_lines_may_still_share_a_pair_of_stops():
+    """Spadina and St George really are one stop apart on both Line 1 and
+    Line 2. The check above must not have outlawed that."""
+    pairs = [e["line"] for e in adj["spadina"] if e["to"] == "stgeorge"]
+    assert len(pairs) == 2 and len(set(pairs)) == 2
 
 
 def test_every_stop_is_inside_greater_toronto():

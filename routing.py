@@ -16,7 +16,7 @@ actual travel times and trips. Two public entry points:
 import math
 import heapq
 
-from network import nodes, adj, WALK_KMH, WAIT_BY_MODE
+from network import nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -39,7 +39,7 @@ def compute_times(olat, olon, with_paths=False):
     prev_node = {}
     prev_line = {}
     for nid, n in nodes.items():
-        wait = WAIT_BY_MODE.get(n['mode'], 6)
+        wait = WAIT_BY_MODE.get(n['mode'], DEFAULT_WAIT_MIN)
         time[nid] = walk_minutes(haversine_km(olat, olon, n['lat'], n['lon'])) + wait
         prev_node[nid] = None
         prev_line[nid] = None
@@ -95,37 +95,14 @@ def build_route(olat, olon, dlat, dlon):
                           'minutes': direct_walk, 'km': direct_km}]
         }
 
-    # reconstruct node chain from origin-entry to best_id
-    chain_ids = [best_id]
-    line_at_step = []
-    cur = best_id
-    while prev_node[cur] is not None:
-        line_at_step.insert(0, prev_line[cur])
-        cur = prev_node[cur]
-        chain_ids.insert(0, cur)
+    chain_ids, line_at_step = _walk_back(best_id, prev_node, prev_line)
 
     segments = []
     first = nodes[chain_ids[0]]
     d0 = haversine_km(olat, olon, first['lat'], first['lon'])
     segments.append({'type': 'walk', 'from': {'lat': olat, 'lon': olon, 'name': 'Start'},
                      'to': first, 'minutes': walk_minutes(d0), 'km': d0})
-
-    i = 0
-    while i < len(line_at_step):
-        line = line_at_step[i]
-        start_node = chain_ids[i]
-        j = i
-        while j < len(line_at_step) and line_at_step[j] == line:
-            j += 1
-        end_node = chain_ids[j]
-        leg_minutes = time[end_node] - time[start_node]
-        leg_path = [nodes[nid] for nid in chain_ids[i:j + 1]]
-        segments.append({
-            'type': 'transfer' if line == 'Transfer' else 'transit', 'line': line,
-            'from': nodes[start_node], 'to': nodes[end_node],
-            'minutes': leg_minutes, 'km': path_km(leg_path)
-        })
-        i = j
+    segments += _ride_legs(chain_ids, line_at_step, time)
 
     last = nodes[best_id]
     dlast = haversine_km(last['lat'], last['lon'], dlat, dlon)
@@ -145,6 +122,51 @@ def build_route(olat, olon, dlat, dlon):
         'totalKm': sum(seg['km'] for seg in segments),
         'segments': segments,
     }
+
+
+def _walk_back(end_id, prev_node, prev_line):
+    """The chain of stops from the entry point to `end_id`, and the line used
+    at each step.
+
+    Dijkstra leaves a predecessor per node; this reads it backwards into
+    forward order. Returned as two lists of lengths n and n-1: the line at
+    step i is how you got from chain[i] to chain[i + 1].
+    """
+    chain_ids = [end_id]
+    line_at_step = []
+    cur = end_id
+    while prev_node[cur] is not None:
+        line_at_step.insert(0, prev_line[cur])
+        cur = prev_node[cur]
+        chain_ids.insert(0, cur)
+    return chain_ids, line_at_step
+
+
+def _ride_legs(chain_ids, line_at_step, time):
+    """Consecutive stops on the same line collapsed into one leg.
+
+    An itinerary that lists every stop between Union and Finch is a list of
+    stations, not directions. What a reader wants is "ride Line 1 from Union
+    to Finch", so runs of the same line become a single segment.
+    """
+    legs = []
+    i = 0
+    while i < len(line_at_step):
+        line = line_at_step[i]
+        j = i
+        while j < len(line_at_step) and line_at_step[j] == line:
+            j += 1
+        start_node, end_node = chain_ids[i], chain_ids[j]
+        legs.append({
+            'type': 'transfer' if line == 'Transfer' else 'transit', 'line': line,
+            'from': nodes[start_node], 'to': nodes[end_node],
+            # The difference of two settled Dijkstra distances is exactly the
+            # sum of the edge weights along this run.
+            'minutes': time[end_node] - time[start_node],
+            'km': path_km([nodes[nid] for nid in chain_ids[i:j + 1]]),
+        })
+        i = j
+    return legs
 
 
 def _charge_boarding_wait(segments, wait):

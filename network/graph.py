@@ -13,7 +13,18 @@ log = logging.getLogger(__name__)
 
 WALK_KMH = 4.8          # average walking pace used everywhere
 TRANSFER = 3            # minutes penalty for a same-spot mode/line change
+
+# Typical wait for the next vehicle, by mode. Half the headway, roughly: a
+# subway every 4-5 minutes averages a 4-minute wait, a GO train every 40
+# averages 20.
 WAIT_BY_MODE = {'subway': 4, 'tram': 6, 'yrt': 8, 'go': 20, 'miway': 10}
+
+# For a mode not in that table. It was written as a bare 6 at the one call
+# site, which made it look like a considered number for streetcars rather
+# than what it is: a shrug for a mode nobody has measured. A test asserts
+# every mode in the graph has a real entry, so reaching this means somebody
+# added a mode and forgot the wait.
+DEFAULT_WAIT_MIN = 6
 
 nodes = {}   # id -> {'name','lat','lon','mode'}
 adj = {}     # id -> [{'to','min','line'}]
