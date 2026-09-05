@@ -40,6 +40,39 @@ about subway stations, `routing.py` only knows about graph search, and
 `app.py`, and none of them know about Leaflet — that all lives in
 `static/js/app.js`.
 
+## Python workflow
+
+```mermaid
+flowchart TD
+  Start([python app.py]) --> ImportApp[Import app.py]
+  ImportApp --> ImportNetwork[Import network package]
+  ImportNetwork --> Graph[Create shared nodes and adjacency graph]
+  Graph --> Subway[Build subway lines]
+  Subway --> Streetcars[Build streetcars and transfer edges]
+  Streetcars --> Regional[Build YRT, MiWay, GO and highway hubs]
+  Regional --> Flask[Start Flask on port 5000]
+
+  Browser[Browser map UI] --> NetworkRequest[GET /api/network]
+  NetworkRequest --> NetworkResponse[Return nodes and unique edges]
+  NetworkResponse --> DrawNetwork[Draw network on Leaflet map]
+
+  Browser --> ClickStart[User selects origin]
+  ClickStart --> ReachRequest[POST /api/reach]
+  ReachRequest --> ComputeTimes[compute_times: add walking and wait times]
+  ComputeTimes --> Dijkstra[Dijkstra over adj]
+  Dijkstra --> ReachResponse[Return minutes to every node]
+  ReachResponse --> HeatMap[Render reachable stops and heat radar]
+
+  Browser --> ClickDestination[User selects destination]
+  ClickDestination --> RouteRequest[POST /api/route]
+  RouteRequest --> BuildRoute[build_route]
+  BuildRoute --> OriginSearch[Run compute_times with predecessors]
+  OriginSearch --> Compare[Compare transit route plus final walk with direct walk]
+  Compare --> Reconstruct[Reconstruct node chain and group line segments]
+  Reconstruct --> RouteResponse[Return time, distance and segments]
+  RouteResponse --> TripView[Render route lines and trip steps]
+```
+
 ## Endpoints
 
 - `GET /api/network` — the full graph (nodes + edges), fetched once on
