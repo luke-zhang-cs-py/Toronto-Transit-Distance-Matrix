@@ -43,11 +43,14 @@ graph without it. YRT, MiWay and GO have no open real-time feed, so they
 stay modelled, and /api/live says so.
 """
 
+import datetime as dt
 import math
 
 from flask import Flask, request, jsonify, render_template
 
+import itinerary
 import realtime
+import schedule
 from network import nodes, adj
 from routing import build_route, compute_times
 
@@ -93,6 +96,44 @@ def _coord(body, key, low, high):
 def _point(body, lat_key, lon_key):
     return (_coord(body, lat_key, *LAT_RANGE),
             _coord(body, lon_key, *LON_RANGE))
+
+
+def _depart_at(body):
+    """The requested departure, or now.
+
+    Accepts "17:20" for today and a full ISO timestamp for another day.
+    Rejected rather than guessed if it is neither: silently planning for
+    "now" when somebody asked for 17:20 gives them a plausible itinerary for
+    the wrong journey, which is worse than an error.
+    """
+    raw = (body or {}).get("departAt") if isinstance(body, dict) else None
+    if raw in (None, "", "now"):
+        return dt.datetime.now().replace(second=0, microsecond=0)
+    if not isinstance(raw, str):
+        raise BadRequest("'departAt' must be \"HH:MM\", an ISO timestamp, or \"now\".")
+
+    text = raw.strip()
+    for pattern in ("%H:%M", "%H:%M:%S"):
+        try:
+            clock = dt.datetime.strptime(text, pattern).time()
+            return dt.datetime.combine(dt.date.today(), clock)
+        except ValueError:
+            pass
+    try:
+        return dt.datetime.fromisoformat(text).replace(second=0, microsecond=0)
+    except ValueError:
+        raise BadRequest("'departAt' must be \"HH:MM\", an ISO timestamp, or \"now\".")
+
+
+def _count(body, key, default, low, high):
+    value = (body or {}).get(key, default) if isinstance(body, dict) else default
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise BadRequest(f"'{key}' must be a whole number.")
+    if not (low <= value <= high):
+        raise BadRequest(f"'{key}' must be between {low} and {high}.")
+    return value
 
 
 def _conditions(body):
@@ -165,6 +206,30 @@ def api_route():
     return jsonify(route)
 
 
+@app.route('/api/trips', methods=['POST'])
+def api_trips():
+    """Several ways to make one trip, for a departure time, with clock times.
+
+    body {olat, olon, dlat, dlon, departAt?, alternatives?, later?, live?}
+
+    Separate from /api/route rather than replacing it: /api/route answers a
+    duration for the map, this answers "what time do I arrive", and the two
+    want different shapes.
+    """
+    body = request.get_json(force=True, silent=True)
+    olat, olon = _point(body, 'olat', 'olon')
+    dlat, dlon = _point(body, 'dlat', 'dlon')
+    depart_at = _depart_at(body)
+    alternatives = _count(body, 'alternatives', itinerary.DEFAULT_ALTERNATIVES, 0, 5)
+    later = _count(body, 'later', itinerary.DEFAULT_LATER, 0, 8)
+
+    return jsonify(itinerary.plan((olat, olon), (dlat, dlon),
+                                  depart_at=depart_at,
+                                  conditions=_conditions(body),
+                                  alternatives=alternatives,
+                                  later=later))
+
+
 @app.route('/api/live')
 def api_live():
     """What the live feed currently says: freshness, closures, coverage.
@@ -172,7 +237,9 @@ def api_live():
     Its own endpoint because the page wants it once, on load and on a timer,
     rather than bundled into every route response.
     """
-    return jsonify(realtime.snapshot())
+    snap = realtime.snapshot()
+    snap['schedule'] = schedule.coverage()
+    return jsonify(snap)
 
 
 if __name__ == '__main__':

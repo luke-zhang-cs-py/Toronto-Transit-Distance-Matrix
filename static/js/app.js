@@ -174,9 +174,74 @@ async function setDestination(lat, lon){
     fillColor:'#b23a3a', fillOpacity:1}).addTo(map);
   Object.values(nodeMarkers).forEach(m=>m.setStyle({fillOpacity:0.25, opacity:0.4}));
 
-  const res = await fetch('/api/route', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({olat:originLatLng.lat, olon:originLatLng.lon, dlat:lat, dlon:lon})});
-  const route = await res.json();
+  lastTrip = {olat: originLatLng.lat, olon: originLatLng.lon, dlat: lat, dlon: lon};
+  await planTrip();
+}
+
+/* Several ways to make the trip, for a chosen departure time.
+ *
+ * /api/trips rather than /api/route: a duration is the right answer for the
+ * heat map and the wrong one for a journey, because it cannot say what time
+ * you arrive or which train you are catching. */
+let lastTrip = null;
+let tripOptions = [];
+let chosenOption = 0;
+
+async function planTrip(){
+  if(!lastTrip) return;
+  const departAt = document.getElementById('departAt').value || 'now';
+  const res = await fetch('/api/trips', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({...lastTrip, departAt, alternatives: 3})});
+  const plan = await res.json();
+  if(!res.ok || !plan.options || !plan.options.length){
+    document.getElementById('optionList').innerHTML =
+      `<div class="cc-note" style="font-size:12px;color:#8fa3ad;">`
+      + `No trip found for that time.</div>`;
+    return;
+  }
+  tripOptions = plan.options;
+  chosenOption = 0;
+  setLiveBadge(plan.live);
+  renderOptionList();
+  drawOption(0);
+}
+
+/* One row per option. The lines and the arrival time are what somebody picks
+ * on, so those are what the row leads with. */
+function renderOptionList(){
+  const el = document.getElementById('optionList');
+  el.innerHTML = tripOptions.map((o, i) => {
+    const lines = o.lines.length ? o.lines.map(shortLine).join(' → ') : 'walk';
+    const changes = o.transfers === 0 ? 'direct'
+      : o.transfers + (o.transfers === 1 ? ' change' : ' changes');
+    return `<button class="tripOption${i === chosenOption ? ' sel' : ''}" data-i="${i}"
+              style="display:block;width:100%;text-align:left;margin-bottom:6px;
+                     background:${i === chosenOption ? '#16232b' : '#0e1418'};
+                     border:1px solid ${i === chosenOption ? '#4fb6c4' : '#2a3640'};
+                     border-radius:6px;padding:7px 9px;color:#e8eef1;cursor:pointer;">
+              <b style="font-size:13px;">${esc(o.departAt)} → ${esc(o.arriveAt)}</b>
+              <span style="color:#8fa3ad;font-size:12px;"> · ${Math.round(o.totalMinutes)} min · ${esc(changes)}</span>
+              <div style="color:#8fa3ad;font-size:11px;margin-top:2px;">${esc(lines)}</div>
+              ${o.laterDepartures.length ? `<div style="color:#6d8290;font-size:11px;">
+                 or ${o.laterDepartures.map(esc).join(', ')}</div>` : ''}
+            </button>`;
+  }).join('');
+  el.querySelectorAll('.tripOption').forEach(b => {
+    b.onclick = () => { chosenOption = Number(b.dataset.i); renderOptionList(); drawOption(chosenOption); };
+  });
+}
+
+function shortLine(name){
+  const m = /^Line (\d)/.exec(name);
+  return m ? 'Line ' + m[1] : name.split(' ')[0];
+}
+
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function drawOption(index){
+  const route = tripOptions[index];
+  if(!route) return;
 
   routeLayer.clearLayers();
   const LINE_COLORS = {};
@@ -190,31 +255,42 @@ async function setDestination(lat, lon){
   });
 
   const ul = document.getElementById('steps'); ul.innerHTML='';
-  route.segments.forEach(seg=>{
-    const dist = fmtKm(seg.km);
+  route.legs.forEach(leg=>{
+    const dist = leg.km != null ? ' · ' + fmtKm(leg.km) : '';
+    const clock = `<span class="mins">${esc(leg.startTime)}–${esc(leg.endTime)}${dist}</span>`;
     let text;
-    if(seg.type==='walk') text = `Walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
-    else if(seg.type==='transfer') text = `Transfer, walk to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min · ${dist}</span>`;
-    else {
-      // seg.wait is the platform time folded into this leg -- it is part of
-      // the leg's minutes, so say so rather than leaving the reader to
-      // wonder why the ride looks longer than the ride.
-      const wait = seg.wait ? ` incl. ${seg.wait.toFixed(0)} min wait ·` : '';
-      text = `Ride <b>${seg.line}</b> from ${seg.from.name} to <b>${seg.to.name}</b> <span class="mins">${seg.minutes.toFixed(1)} min ·${wait} ${dist}</span>`;
+    if(leg.type==='walk'){
+      text = `Walk to <b>${esc(leg.to.name)}</b> ${clock}`;
+    } else if(leg.type==='transfer'){
+      text = `Change at <b>${esc(leg.to.name)}</b> ${clock}`;
+    } else if(leg.type==='wait'){
+      /* The wait is its own step, with the source named. A departure time
+       * from the timetable and one assumed from an average headway are
+       * different claims, and showing them identically would hide which is
+       * which. */
+      const how = leg.source === 'timetable' ? 'timetabled'
+                : leg.source === 'headway' ? 'from live headway' : 'estimated';
+      text = `Wait for <b>${esc(shortLine(leg.line))}</b>, board ${esc(leg.boardAt)}`
+           + ` <span class="mins">${leg.minutes.toFixed(1)} min · ${esc(how)}</span>`;
+    } else {
+      const stops = leg.stops ? ` · ${leg.stops} stops` : '';
+      text = `Ride <b>${esc(leg.line)}</b> to <b>${esc(leg.to.name)}</b>`
+           + ` <span class="mins">${esc(leg.startTime)}–${esc(leg.endTime)}${stops}${dist}</span>`;
     }
     const li = document.createElement('li'); li.innerHTML = text; ul.appendChild(li);
 
-    if(seg.type==='walk' || seg.type==='transfer'){
-      L.polyline([[seg.from.lat,seg.from.lon],[seg.to.lat,seg.to.lon]],
-        {color:'#dfe6ea', weight:3, dashArray: seg.type==='walk' ? '2 7':'1 5', opacity:0.85}).addTo(routeLayer);
-    } else {
-      L.polyline([[seg.from.lat,seg.from.lon],[seg.to.lat,seg.to.lon]],
-        {color: LINE_COLORS[seg.line] || '#4fb6c4', weight:6, opacity:0.95}).addTo(routeLayer);
+    if(!leg.from || leg.from.lat == null || !leg.to || leg.to.lat == null) return;
+    if(leg.type==='walk' || leg.type==='transfer'){
+      L.polyline([[leg.from.lat,leg.from.lon],[leg.to.lat,leg.to.lon]],
+        {color:'#dfe6ea', weight:3, dashArray: leg.type==='walk' ? '2 7':'1 5', opacity:0.85}).addTo(routeLayer);
+    } else if(leg.type==='transit'){
+      L.polyline([[leg.from.lat,leg.from.lon],[leg.to.lat,leg.to.lon]],
+        {color: LINE_COLORS[leg.line] || '#4fb6c4', weight:6, opacity:0.95}).addTo(routeLayer);
     }
   });
-  document.getElementById('tripTotal').textContent = route.total.toFixed(1)+' min';
+  document.getElementById('tripTotal').textContent =
+    `${route.departAt}–${route.arriveAt} · ${Math.round(route.totalMinutes)} min`;
   document.getElementById('tripDist').textContent = fmtKm(route.totalKm);
-  setLiveBadge(route.live);
 }
 
 map.on('click', (e)=>{
@@ -240,3 +316,7 @@ loadNetwork();
 
 loadLiveStatus();
 setInterval(loadLiveStatus, 60000);
+
+/* Changing the departure time replans rather than rescaling the old answer:
+ * a different time is a different set of trains. */
+document.getElementById('departAt').addEventListener('change', planTrip);
