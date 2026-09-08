@@ -16,19 +16,12 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import app                                   # noqa: E402
 from network import nodes, adj, WAIT_BY_MODE, DEFAULT_WAIT_MIN  # noqa: E402
 from routing import build_route, compute_times, haversine_km, walk_minutes  # noqa: E402
 
 # Somewhere central and somewhere north, far enough apart to need the subway.
 UNION = (43.6453, -79.3806)
 FINCH = (43.7805, -79.4151)
-
-
-@pytest.fixture
-def client():
-    app.config["TESTING"] = True
-    return app.test_client()
 
 
 # ------------------------------------------------------------------- graph
@@ -206,8 +199,12 @@ def test_each_edge_is_listed_once(client):
 
 
 def test_reach_returns_a_time_for_every_stop(client):
-    body = client.post("/api/reach", json={"lat": UNION[0], "lon": UNION[1]}).get_json()
-    assert set(body) == set(nodes)
+    """`times` under its own key, with `live` beside it. Flat, there was
+    nowhere to put the liveness flag that a node id could not also occupy."""
+    body = client.post("/api/reach", json={"lat": UNION[0], "lon": UNION[1],
+                                           "live": False}).get_json()
+    assert set(body["times"]) == set(nodes)
+    assert body["live"] is False
 
 
 def test_route_returns_a_usable_itinerary(client):

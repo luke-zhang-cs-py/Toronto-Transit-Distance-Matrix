@@ -4,3 +4,9 @@ __pycache__/
 venv/
 *.egg-info/
 .DS_Store
+
+# Coverage output. A binary database of one local run -- it was committed
+# by accident and changes on every test invocation.
+.coverage
+htmlcov/
+.pytest_cache/

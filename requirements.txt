@@ -1,4 +1,10 @@
 Flask>=2.3
 
+# TTC's realtime feed is GTFS-realtime protobuf. The official bindings
+# rather than a hand-rolled wire-format decoder: parsing protobuf by hand is
+# real code to get wrong, and this is the one place the app trusts bytes
+# from someone else. No API key -- bustime.ttc.ca is open.
+gtfs-realtime-bindings>=1.0
+
 # Tests only; the app itself needs nothing but Flask.
 pytest>=7.4

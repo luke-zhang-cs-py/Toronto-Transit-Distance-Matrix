@@ -16,7 +16,8 @@ actual travel times and trips. Two public entry points:
 import math
 import heapq
 
-from network import nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN
+import realtime
+from network import nodes, adj, WALK_KMH
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -32,14 +33,28 @@ def walk_minutes(km):
     return km / WALK_KMH * 60
 
 
-def compute_times(olat, olon, with_paths=False):
+def lines_at(nid):
+    """The lines that call at a stop, for working out a boarding wait."""
+    return {edge['line'] for edge in adj[nid] if edge['line'] != 'Transfer'}
+
+
+def compute_times(olat, olon, with_paths=False, conditions=None):
     """Dijkstra from a virtual origin point to every node. If with_paths is
-    True, also returns predecessor node/line maps for path reconstruction."""
+    True, also returns predecessor node/line maps for path reconstruction.
+
+    `conditions` is a realtime.Conditions -- one frozen reading of the live
+    feed, or the static model. Frozen because the weights must not move while
+    the search runs: a shortest path over a graph that changes underneath you
+    is not a shortest path.
+    """
+    if conditions is None:
+        conditions = realtime.Conditions.static()
+
     time = {}
     prev_node = {}
     prev_line = {}
     for nid, n in nodes.items():
-        wait = WAIT_BY_MODE.get(n['mode'], DEFAULT_WAIT_MIN)
+        wait, _measured = conditions.boarding_wait(lines_at(nid), n['mode'])
         time[nid] = walk_minutes(haversine_km(olat, olon, n['lat'], n['lon'])) + wait
         prev_node[nid] = None
         prev_line[nid] = None
@@ -55,7 +70,13 @@ def compute_times(olat, olon, with_paths=False):
         if t > time[u]:
             continue
         for edge in adj[u]:
-            v, w = edge['to'], edge['min']
+            # A closed line is absent, not expensive: skipping the edge lets
+            # the search route around it, which is what somebody standing on
+            # the platform has to do.
+            extra = conditions.impact_on(edge['line'])
+            if extra is None:
+                continue
+            v, w = edge['to'], edge['min'] + extra
             nt = t + w
             if nt < time[v]:
                 time[v] = nt
@@ -76,8 +97,11 @@ def path_km(points):
     return km
 
 
-def build_route(olat, olon, dlat, dlon):
-    time, prev_node, prev_line = compute_times(olat, olon, with_paths=True)
+def build_route(olat, olon, dlat, dlon, conditions=None):
+    if conditions is None:
+        conditions = realtime.Conditions.static()
+    time, prev_node, prev_line = compute_times(olat, olon, with_paths=True,
+                                               conditions=conditions)
     direct_walk = walk_minutes(haversine_km(olat, olon, dlat, dlon))
     direct_km = haversine_km(olat, olon, dlat, dlon)
 

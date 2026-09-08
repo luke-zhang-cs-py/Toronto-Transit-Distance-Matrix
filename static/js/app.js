@@ -20,6 +20,29 @@ const heatLayer = L.heatLayer([], {
              0.65:'rgba(240,211,58,0.32)', 0.85:'rgba(178,58,58,0.32)', 1:'rgba(178,58,58,0.4)'}
 }).addTo(map);
 
+/* Whether the numbers on screen came from the live feed or the fixed
+ * schedule. Shown rather than inferred: a travel time that silently switches
+ * between measured and assumed is worse than either, because the reader
+ * cannot tell which one they are looking at. */
+let liveNote = '';
+function setLiveBadge(isLive){
+  const el = document.getElementById('liveBadge');
+  if(!el) return;
+  el.textContent = isLive ? ('live' + (liveNote ? ' — ' + liveNote : '')) : 'scheduled';
+  el.title = isLive
+    ? 'Waits measured from TTC GTFS-realtime; closed lines routed around.'
+    : 'Fixed schedule model — the live feed was unavailable.';
+}
+
+async function loadLiveStatus(){
+  try{
+    const s = await (await fetch('/api/live')).json();
+    const closed = (s.closed || []);
+    liveNote = closed.length ? (closed.length + ' disrupted') : (s.routesWithObservedHeadway + ' routes measured');
+    setLiveBadge(s.live);
+  }catch(e){ /* the badge stays as the last route set it */ }
+}
+
 function fmtKm(km){ return km < 1 ? Math.round(km*1000)+' m' : km.toFixed(1)+' km'; }
 function lerpColor(f){
   const stops=[[57,182,255],[240,211,58],[178,58,58]];
@@ -127,7 +150,9 @@ async function setOrigin(lat, lon){
 
   const res = await fetch('/api/reach', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({lat, lon})});
-  currentTimes = await res.json();
+  const reach = await res.json();
+  currentTimes = reach.times;
+  setLiveBadge(reach.live);
 
   let nearestId=null, nd=Infinity;
   Object.entries(currentTimes).forEach(([id,t])=>{ if(t<nd){ nd=t; nearestId=id; } });
@@ -189,6 +214,7 @@ async function setDestination(lat, lon){
   });
   document.getElementById('tripTotal').textContent = route.total.toFixed(1)+' min';
   document.getElementById('tripDist').textContent = fmtKm(route.totalKm);
+  setLiveBadge(route.live);
 }
 
 map.on('click', (e)=>{
@@ -211,3 +237,6 @@ document.getElementById('slider').addEventListener('input', (e)=>{
 });
 
 loadNetwork();
+
+loadLiveStatus();
+setInterval(loadLiveStatus, 60000);

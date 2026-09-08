@@ -21,25 +21,35 @@ GET  /              the page itself
 GET  /api/network    -> {nodes: {...}, edges: [[a,b,minutes,line], ...]}
                         (fetched once on load, used to draw the line
                         outlines and to sample the heat-radar layer)
-POST /api/reach       body {lat, lon} -> {node_id: minutes, ...}
-                        (heat-map / "reachable within X minutes" mode)
+POST /api/reach       body {lat, lon} -> {times: {node_id: minutes}, live}
 POST /api/route       body {olat, olon, dlat, dlon} ->
-                        {total, totalKm, segments:[...]}
+                        {total, totalKm, segments:[...], live}
                         (point-to-point trip planning)
+GET  /api/live        -> feed freshness, closures, coverage
 
-This is a fixed schedule *model* (typical dwell/wait/transfer minutes),
-not TTC's live feed — TTC's public real-time (GTFS-RT) feed was
-retired, and this environment has no network access to pull a live
-GTFS static feed either. See network/__init__.py for how to swap in
-real GTFS data later.
+Both POST bodies accept "live": false to force the fixed schedule model.
+
+Live data
+---------
+Waits and closures come from TTC's GTFS-realtime feed, which is open and
+needs no API key (bustime.ttc.ca). An earlier version of this note said
+that feed had been retired; it has not. See realtime.py for what the feed
+can and cannot answer, and for how a route degrades to the fixed schedule
+model when it is unreachable.
+
+The hop times between stops are still a model -- those need TTC's static
+GTFS to improve, and the feed's stop ids do not map onto this hand-built
+graph without it. YRT, MiWay and GO have no open real-time feed, so they
+stay modelled, and /api/live says so.
 """
 
 import math
 
 from flask import Flask, request, jsonify, render_template
 
+import realtime
 from network import nodes, adj
-from routing import compute_times, build_route
+from routing import build_route, compute_times
 
 app = Flask(__name__)
 
@@ -85,6 +95,19 @@ def _point(body, lat_key, lon_key):
             _coord(body, lon_key, *LON_RANGE))
 
 
+def _conditions(body):
+    """The live network reading for this request, unless asked not to.
+
+    Live by default, because a router that has to be asked for current data
+    is a timetable. `{"live": false}` gets the fixed schedule model, which is
+    what the tests use and what you want when comparing two routes without
+    the ground moving between them.
+    """
+    if isinstance(body, dict) and body.get("live") is False:
+        return realtime.Conditions.static()
+    return realtime.Conditions.live_now()
+
+
 @app.errorhandler(BadRequest)
 def _bad_request(exc):
     return jsonify({'error': str(exc)}), 400
@@ -116,8 +139,16 @@ def api_network():
 def api_reach():
     body = request.get_json(force=True, silent=True)
     lat, lon = _point(body, 'lat', 'lon')
-    times = compute_times(lat, lon)
-    return jsonify({nid: round(t, 1) for nid, t in times.items()})
+    conditions = _conditions(body)
+    times = compute_times(lat, lon, conditions=conditions)
+    # `times` under its own key rather than the node ids at the top level.
+    # Flat, there was nowhere to put `live` that a node id could not also
+    # occupy, and a response whose keys are partly data and partly metadata
+    # cannot be read without knowing every node id in advance.
+    return jsonify({
+        'times': {nid: round(t, 1) for nid, t in times.items()},
+        'live': conditions.live,
+    })
 
 
 @app.route('/api/route', methods=['POST'])
@@ -125,9 +156,35 @@ def api_route():
     body = request.get_json(force=True, silent=True)
     olat, olon = _point(body, 'olat', 'olon')
     dlat, dlon = _point(body, 'dlat', 'dlon')
-    return jsonify(build_route(olat, olon, dlat, dlon))
+    conditions = _conditions(body)
+    route = build_route(olat, olon, dlat, dlon, conditions=conditions)
+    # Every trip says whether it was planned against live data or the fixed
+    # schedule. A number that silently switches between measured and assumed
+    # is worse than either, because you cannot tell which you are reading.
+    route['live'] = conditions.live
+    return jsonify(route)
+
+
+@app.route('/api/live')
+def api_live():
+    """What the live feed currently says: freshness, closures, coverage.
+
+    Its own endpoint because the page wants it once, on load and on a timer,
+    rather than bundled into every route response.
+    """
+    return jsonify(realtime.snapshot())
 
 
 if __name__ == '__main__':
     print(f"Loaded {len(nodes)} stops / {sum(len(v) for v in adj.values()) // 2} edges.")
+    # Warm the live reading before serving, and keep it warm on a background
+    # thread. Without this the first route request pays the fetch -- measured
+    # at 5.2 seconds for 730 KB -- and one request every TTL pays it again.
+    realtime.start_refresh()
+    if realtime.refresh():
+        snap = realtime.snapshot()
+        print(f"Live TTC feed: {snap['routesWithObservedHeadway']} routes measured, "
+              f"{len(snap['closed'])} closed, {len(snap['detour'])} on detour.")
+    else:
+        print("Live TTC feed unavailable -- serving the fixed schedule model.")
     app.run(debug=True, port=5000)
