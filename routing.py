@@ -13,29 +13,21 @@ actual travel times and trips. Two public entry points:
         segment carries both time and real (haversine) distance.
 """
 
-import math
 import heapq
 
+import geo
 import realtime
-from network import nodes, adj, WALK_KMH
+from network import nodes, adj, WALK_KMH, lines_at
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlmb = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
-    return 2 * R * math.asin(math.sqrt(a))
+    """Kept as a name because itinerary and the tests import it from here.
+    The formula lives in geo, which is also what the build tools use."""
+    return geo.km(lat1, lon1, lat2, lon2)
 
 
 def walk_minutes(km):
     return km / WALK_KMH * 60
-
-
-def lines_at(nid):
-    """The lines that call at a stop, for working out a boarding wait."""
-    return {edge['line'] for edge in adj[nid] if edge['line'] != 'Transfer'}
 
 
 def compute_times(olat, olon, with_paths=False, conditions=None):

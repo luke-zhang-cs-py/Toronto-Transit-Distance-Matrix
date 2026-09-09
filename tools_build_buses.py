@@ -44,10 +44,7 @@ Usage
 """
 
 import argparse
-import csv
-import io
 import json
-import math
 import os
 import statistics
 import sys
@@ -56,6 +53,9 @@ from collections import Counter, defaultdict
 
 PROJ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJ)
+
+from gtfs import rows, to_seconds                 # noqa: E402
+from geo import metres                            # noqa: E402
 
 OUTPUT = os.path.join(PROJ, "network", "bus_routes.json")
 
@@ -83,30 +83,6 @@ TRANSFER_MINUTES = 3
 # same scheduled minute, and a zero-cost edge makes two places the same place.
 MIN_HOP_MIN = 1
 MAX_HOP_MIN = 40
-
-
-def metres(lat1, lon1, lat2, lon2):
-    radius = 6371000.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = (math.sin(dphi / 2) ** 2
-         + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2)
-    return 2 * radius * math.asin(math.sqrt(a))
-
-
-def rows(archive, name):
-    with archive.open(name) as raw:
-        for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig")):
-            yield row
-
-
-def to_seconds(value):
-    try:
-        h, m, s = (int(part) for part in value.split(":"))
-    except (ValueError, AttributeError):
-        return None
-    return h * 3600 + m * 60 + s
 
 
 def busiest_bus_routes(archive, limit):
@@ -218,6 +194,65 @@ def hop_minutes(route_id, kept, hops, positions):
     return out
 
 
+def _one_route(route, sequence, positions, hops, spacing, existing, seen_ids,
+               transfers):
+    """One generated route: its thinned stops, its hop times, its transfers.
+
+    Returns None if too little of the route survived thinning to be worth
+    adding -- a two-stop line is a pair of points, not a route.
+    """
+    kept = thin(sequence, positions, spacing)
+    if len(kept) < 3:
+        return None
+
+    stops = []
+    for stop_id, _seconds in kept:
+        lat, lon, name = positions[stop_id]
+        node_id = f"b{route['short']}_{stop_id}"
+        if node_id in seen_ids:
+            continue
+        seen_ids.add(node_id)
+        stops.append({"id": node_id, "name": name, "lat": lat, "lon": lon})
+
+        # A generated stop near an existing node is a place to change. Every
+        # one of them, not just the first: a stop outside a station that also
+        # meets a streetcar is two changes, and taking only one leaves the
+        # other unreachable.
+        for other_id, other in existing.items():
+            if metres(lat, lon, other["lat"], other["lon"]) <= TRANSFER_RADIUS_M:
+                transfers.append([node_id, other_id, TRANSFER_MINUTES])
+
+    if len(stops) < 3:
+        return None
+    return {
+        "line": route["line"],
+        "stops": stops,
+        "hops": hop_minutes(route["route_id"], kept, hops,
+                            positions)[:len(stops) - 1],
+    }
+
+
+def _add_crossings(out_routes, transfers):
+    """Transfer edges where two generated routes meet. Returns how many.
+
+    Without these each route is a line reachable only through its handful of
+    station transfers, which is not a network -- crossing Scarborough would
+    mean riding downtown and back. Routes meeting at an intersection is most
+    of how buses are actually used.
+    """
+    placed = [(stop["id"], stop["lat"], stop["lon"], route["line"])
+              for route in out_routes for stop in route["stops"]]
+    crossings = 0
+    for index, (id_a, lat_a, lon_a, line_a) in enumerate(placed):
+        for id_b, lat_b, lon_b, line_b in placed[index + 1:]:
+            if line_a == line_b:
+                continue
+            if metres(lat_a, lon_a, lat_b, lon_b) <= TRANSFER_RADIUS_M:
+                transfers.append([id_a, id_b, TRANSFER_MINUTES])
+                crossings += 1
+    return crossings
+
+
 def build(zip_path, route_limit, spacing):
     archive = zipfile.ZipFile(zip_path)
     positions = {s["stop_id"]: (float(s["stop_lat"]), float(s["stop_lon"]),
@@ -246,39 +281,16 @@ def build(zip_path, route_limit, spacing):
     out_routes, transfers = [], []
     seen_ids = set()
 
+    out_routes, transfers = [], []
+    seen_ids = set()
     for route in chosen:
         entry = best.get(route["route_id"])
         if entry is None:
             continue
-        _trip_id, sequence = entry
-        kept = thin(sequence, positions, spacing)
-        if len(kept) < 3:
-            continue
-
-        stops = []
-        for stop_id, _seconds in kept:
-            lat, lon, name = positions[stop_id]
-            node_id = f"b{route['short']}_{stop_id}"
-            if node_id in seen_ids:
-                continue
-            seen_ids.add(node_id)
-            stops.append({"id": node_id, "name": name, "lat": lat, "lon": lon})
-
-            # A generated stop near an existing node is a place to change.
-            # Every one of them, not just the first: a stop outside a station
-            # that also meets a streetcar is two changes, and taking only one
-            # leaves the other unreachable.
-            for other_id, other in existing.items():
-                if metres(lat, lon, other["lat"], other["lon"]) <= TRANSFER_RADIUS_M:
-                    transfers.append([node_id, other_id, TRANSFER_MINUTES])
-
-        if len(stops) < 3:
-            continue
-        out_routes.append({
-            "line": route["line"],
-            "stops": stops,
-            "hops": hop_minutes(route["route_id"], kept, hops, positions)[:len(stops) - 1],
-        })
+        built = _one_route(route, entry[1], positions, hops, spacing,
+                           existing, seen_ids, transfers)
+        if built is not None:
+            out_routes.append(built)
 
     # Bus to bus, where two routes cross.
     #
@@ -286,16 +298,7 @@ def build(zip_path, route_limit, spacing):
     # of subway transfers, which is not a network -- crossing Scarborough
     # would mean riding downtown and back. Routes crossing at an
     # intersection is most of how buses are actually used.
-    placed = [(stop["id"], stop["lat"], stop["lon"], route["line"])
-              for route in out_routes for stop in route["stops"]]
-    crossings = 0
-    for i, (id_a, lat_a, lon_a, line_a) in enumerate(placed):
-        for id_b, lat_b, lon_b, line_b in placed[i + 1:]:
-            if line_a == line_b:
-                continue
-            if metres(lat_a, lon_a, lat_b, lon_b) <= TRANSFER_RADIUS_M:
-                transfers.append([id_a, id_b, TRANSFER_MINUTES])
-                crossings += 1
+    crossings = _add_crossings(out_routes, transfers)
     print(f"  {crossings} bus-to-bus crossings")
 
     # Order matters. Prune first, so the island check is not fooled by an

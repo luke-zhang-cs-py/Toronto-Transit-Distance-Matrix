@@ -41,29 +41,23 @@ Usage
 """
 
 import argparse
-import csv
-import io
 import json
-import math
 import os
-import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 import zipfile
 
 PROJ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJ)
 
-from network import nodes, adj                     # noqa: E402
+from gtfs import (ARCHIVE_URL, fetch, rows, stop_positions,  # noqa: E402
+                  to_seconds)
+from geo import metres                            # noqa: E402
 
-# Toronto's open data portal. The zip is ~36 MB and is republished when the
-# board period changes, so this is refetched rather than committed.
-GTFS_URL = ("https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/"
-            "7795b45e-e65a-4465-81fc-c36b9dfff169/resource/"
-            "cfb6b2b8-6191-41e3-bda1-b175c51148cb/download/"
-            "opendata_ttc_schedules.zip")
+from network import lines_at, nodes                # noqa: E402
+
+# The archive URL lives in gtfs, which is what both build tools read.
+GTFS_URL = ARCHIVE_URL
 
 INDEX_PATH = os.path.join(PROJ, "schedule_index.json")
 
@@ -84,61 +78,17 @@ def log(message):
     print(message, flush=True)
 
 
-def fetch(url, dest):
-    """Download the archive. urllib first, curl second -- see realtime._fetch
-    for why this machine needs the second one."""
-    try:
-        with urllib.request.urlopen(url, timeout=300) as response, \
-                open(dest, "wb") as handle:
-            handle.write(response.read())
-        return True
-    except (urllib.error.URLError, OSError, ValueError):
-        pass
-    try:
-        done = subprocess.run(["curl", "-sL", "--max-time", "400", "-o", dest, url],
-                              timeout=420)
-        return done.returncode == 0 and os.path.getsize(dest) > 0
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
-def rows(archive, name):
-    with archive.open(name) as raw:
-        for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig")):
-            yield row
-
-
-def metres(lat1, lon1, lat2, lon2):
-    radius = 6371000.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = (math.sin(dphi / 2) ** 2
-         + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2)
-    return 2 * radius * math.asin(math.sqrt(a))
-
-
-def to_seconds(hhmmss):
-    """GTFS time to seconds after midnight, keeping hours past 24.
-
-    "25:30:00" is half past one in the morning on a service day that started
-    the previous morning. Normalising it to 01:30 would sort the last train
-    of the night before the first train of the day.
-    """
-    try:
-        hours, minutes, seconds = (int(part) for part in hhmmss.split(":"))
-    except (ValueError, AttributeError):
-        return None
-    return hours * 3600 + minutes * 60 + seconds
-
-
 # ---------------------------------------------------------------------------
 # Which GTFS route is which line in the graph
 # ---------------------------------------------------------------------------
 def graph_lines():
-    """Every line name that appears on an edge, excluding transfers."""
-    return {edge["line"] for edges in adj.values() for edge in edges
-            if edge["line"] != "Transfer"}
+    """Every line name in the graph, excluding transfers.
+
+    The union of lines_at over every node -- the same question that function
+    answers per stop, asked of the whole graph, rather than a second walk
+    over adj that could disagree with it about what counts as a line.
+    """
+    return {line for node_id in nodes for line in lines_at(node_id)}
 
 
 def match_routes(archive, lines):
@@ -209,16 +159,6 @@ def collect_departures(archive, trips):
         found.setdefault((route_id, row["stop_id"], service_id), []).append(seconds)
     log(f"    {seen:,} rows read")
     return found
-
-
-def stop_positions(archive):
-    return {stop["stop_id"]: (float(stop["stop_lat"]), float(stop["stop_lon"]),
-                              stop["stop_name"])
-            for stop in rows(archive, "stops.txt")}
-
-
-def lines_at(node_id):
-    return {edge["line"] for edge in adj[node_id] if edge["line"] != "Transfer"}
 
 
 def match_nodes(departures, positions, route_of_line):

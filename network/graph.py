@@ -64,3 +64,14 @@ def chain(seq, hop, mode, line):
         if prev is not None:
             add_edge(prev, s['id'], hop, line)
         prev = s['id']
+
+
+def lines_at(node_id):
+    """The lines that call at a stop, ignoring transfer edges.
+
+    A graph query, so it lives with the graph. routing.py and
+    tools_build_schedule.py both had their own copy -- identical apart from
+    quote style -- and both need it to answer the same question: which
+    services can somebody board here.
+    """
+    return {edge['line'] for edge in adj[node_id] if edge['line'] != 'Transfer'}

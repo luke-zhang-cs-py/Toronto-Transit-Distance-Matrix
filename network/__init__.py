@@ -13,7 +13,8 @@ Importing this package runs that build once; every other module in the
 app just imports `nodes` and `adj` from here.
 """
 
-from .graph import nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN
+from .graph import (nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN,
+                    lines_at)
 from . import subway, streetcars, regional, buses
 
 subway.build()
@@ -24,4 +25,5 @@ regional.build()
 # been run, and the graph is then what it was before.
 buses.load()
 
-__all__ = ['nodes', 'adj', 'WALK_KMH', 'WAIT_BY_MODE', 'DEFAULT_WAIT_MIN']
+__all__ = ['nodes', 'adj', 'WALK_KMH', 'WAIT_BY_MODE', 'DEFAULT_WAIT_MIN',
+           'lines_at']
