@@ -36,17 +36,19 @@ def legs_of(option, kind):
 
 def test_a_trip_reports_when_it_starts_and_ends(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
-    assert plan["departAt"] == "17:20"
+    # To the second: the timetable has that precision and truncating threw
+    # it away.
+    assert plan["departAt"] == "17:20:00"
     best = plan["options"][0]
-    assert best["departAt"] == "17:20"
-    assert best["arriveAt"] > "17:20"
+    assert best["departAt"] == "17:20:00"
+    assert best["arriveAt"] > "17:20:00"
 
 
 def test_every_leg_carries_a_clock_time(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
     for leg in plan["options"][0]["legs"]:
-        dt.datetime.strptime(leg["startTime"], "%H:%M")
-        dt.datetime.strptime(leg["endTime"], "%H:%M")
+        dt.datetime.strptime(leg["startTime"], itinerary.CLOCK)
+        dt.datetime.strptime(leg["endTime"], itinerary.CLOCK)
         assert leg["endTime"] >= leg["startTime"]
 
 
@@ -83,7 +85,7 @@ def test_a_wait_comes_from_the_timetable(static):
     waits = legs_of(plan["options"][0], "wait")
     assert waits, "boarding a train means waiting for it"
     assert waits[0]["source"] == "timetable"
-    dt.datetime.strptime(waits[0]["boardAt"], "%H:%M")
+    dt.datetime.strptime(waits[0]["boardAt"], itinerary.CLOCK)
 
 
 @pytest.mark.skipif(not schedule.available(), reason="no schedule index")
@@ -104,7 +106,7 @@ def test_the_boarding_time_is_a_real_departure(static):
     node_id = next(nid for nid, node in graph_nodes.items()
                    if node["name"] == ride["from"]["name"])
     scheduled = schedule.departures_after(node_id, ride["line"], at(17, 20), limit=8)
-    assert wait["boardAt"] in [when.strftime("%H:%M") for when in scheduled]
+    assert wait["boardAt"] in [itinerary.clock(when) for when in scheduled]
 
 
 def test_a_wait_is_charged_for_every_boarding(static):
@@ -298,7 +300,7 @@ def test_the_trips_endpoint_answers(client):
     body = client.post("/api/trips", json={
         "olat": UNION[0], "olon": UNION[1], "dlat": FINCH[0], "dlon": FINCH[1],
         "departAt": "17:20", "live": False}).get_json()
-    assert body["departAt"] == "17:20"
+    assert body["departAt"] == "17:20:00"
     assert body["options"] and body["options"][0]["arriveAt"]
 
 
@@ -327,7 +329,7 @@ def test_an_iso_timestamp_plans_for_another_day(client):
         "olat": UNION[0], "olon": UNION[1], "dlat": FINCH[0], "dlon": FINCH[1],
         "departAt": "2026-09-09T06:30", "live": False}).get_json()
     assert body["departDate"] == "2026-09-09"
-    assert body["departAt"] == "06:30"
+    assert body["departAt"] == "06:30:00"
 
 
 @pytest.mark.parametrize("key,value", [("alternatives", 99), ("later", -1),

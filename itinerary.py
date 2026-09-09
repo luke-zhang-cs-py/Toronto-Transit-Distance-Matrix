@@ -50,6 +50,7 @@ what somebody actually wants when they are deciding whether to hurry.
 
 import datetime as dt
 import heapq
+import itertools
 
 import realtime
 import schedule
@@ -100,6 +101,19 @@ DEFAULT_LATER = 3
 
 TRANSFER_LINE = "Transfer"
 
+# Times are reported to the second.
+#
+# The timetable has them: Line 1 leaves Union at 17:22:16, not "about 17:22".
+# Truncating to the minute threw away information the data had and made two
+# trains 40 seconds apart look identical -- and it caused a real bug, where
+# the "later departures" list re-parsed a displayed "17:22" and offered the
+# 17:22:16 train somebody was already catching as a later option.
+CLOCK = "%H:%M:%S"
+
+
+def clock(moment):
+    return moment.strftime(CLOCK)
+
 
 class Leg:
     """One continuous part of a trip: a walk, a wait, or a ride."""
@@ -112,8 +126,8 @@ class Leg:
     def as_dict(self, start, end):
         out = {"type": self.kind,
                "minutes": round(self.minutes, 1),
-               "startTime": start.strftime("%H:%M"),
-               "endTime": end.strftime("%H:%M")}
+               "startTime": start.strftime(CLOCK),
+               "endTime": end.strftime(CLOCK)}
         out.update(self.extra)
         return out
 
@@ -176,16 +190,24 @@ def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()
     best = {}
     frontier = []
 
+    # A strictly increasing tiebreaker, so heapq never has to compare the
+    # payload. Entries are (arrival, seq, node, line), and `line` is None for
+    # "not yet boarded": with two entries at the same arrival and the same
+    # stop, Python fell through to comparing None against a string and raised
+    # TypeError. Latent while the graph was small enough that exact ties were
+    # rare; adding 388 bus stops made them routine.
+    counter = itertools.count()
+
     for node_id, walk in _access_nodes(olat, olon, access):
         arrival = depart_at + dt.timedelta(minutes=walk)
         state = (node_id, None)
         if state not in best or arrival < best[state][0]:
             best[state] = (arrival, None, None, 0.0, None)
-            heapq.heappush(frontier, (arrival, node_id, None))
+            heapq.heappush(frontier, (arrival, next(counter), node_id, None))
 
     settled = set()
     while frontier:
-        arrival, node_id, on_line = heapq.heappop(frontier)
+        arrival, _seq, node_id, on_line = heapq.heappop(frontier)
         state = (node_id, on_line)
         if state in settled or arrival > best[state][0]:
             continue
@@ -214,7 +236,8 @@ def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()
             target = (edge["to"], next_line)
             if target not in best or reached < best[target][0]:
                 best[target] = (reached, state, line, wait, source)
-                heapq.heappush(frontier, (reached, edge["to"], next_line))
+                heapq.heappush(frontier,
+                               (reached, next(counter), edge["to"], next_line))
 
     # Finish by walking from wherever we got to.
     finish, final_state = None, None
@@ -284,7 +307,7 @@ def _to_legs(chain, origin, destination, depart_at, arrival, access=ACCESS_WALK)
         if wait and wait > 0:
             end = clock + dt.timedelta(minutes=wait)
             legs.append((Leg("wait", wait, line=line, source=source,
-                             boardAt=end.strftime("%H:%M"),
+                             boardAt=end.strftime(CLOCK),
                              **{"at": {"name": start_node["name"]}}), clock, end))
             clock = end
 
@@ -334,8 +357,8 @@ def _describe(option_legs, chain, depart_at, arrival, later):
     """One search result as the option a reader sees."""
     signature = _signature_line(option_legs)
     return {
-        "departAt": depart_at.strftime("%H:%M"),
-        "arriveAt": arrival.strftime("%H:%M"),
+        "departAt": depart_at.strftime(CLOCK),
+        "arriveAt": arrival.strftime(CLOCK),
         "totalMinutes": round((arrival - depart_at).total_seconds() / 60.0, 1),
         "totalKm": round(sum(leg.get("km", 0) for leg in option_legs), 2),
         # Line changes, not platform walks. Counting only the walks reported
@@ -410,8 +433,8 @@ def _baseline(origin, destination, depart_at, mode):
     return {
         "kind": mode,
         "label": label,
-        "departAt": depart_at.strftime("%H:%M"),
-        "arriveAt": arrival.strftime("%H:%M"),
+        "departAt": depart_at.strftime(CLOCK),
+        "arriveAt": arrival.strftime(CLOCK),
         "totalMinutes": round(minutes, 1),
         "totalKm": round(km, 2),
         "transfers": 0,
@@ -425,8 +448,8 @@ def _baseline(origin, destination, depart_at, mode):
                  f"Straight-line distance at {WALK_KMH:.1f} km/h."),
         "legs": [{"type": mode, "minutes": round(minutes, 1),
                   "km": round(km, 2),
-                  "startTime": depart_at.strftime("%H:%M"),
-                  "endTime": arrival.strftime("%H:%M"),
+                  "startTime": depart_at.strftime(CLOCK),
+                  "endTime": arrival.strftime(CLOCK),
                   "from": {"name": "Start", "lat": origin[0], "lon": origin[1]},
                   "to": {"name": "Destination",
                          "lat": destination[0], "lon": destination[1]}}],
@@ -445,6 +468,13 @@ def _transit_options(origin, destination, depart_at, conditions, alternatives,
             break
         legs = _to_legs(chain, origin, destination, depart_at, arrival, access)
         option = _describe(legs, chain, depart_at, arrival, later)
+        if not option["lines"]:
+            # The search reached the destination without boarding anything,
+            # so this is not a transit option at all -- labelling it "Drive
+            # to transit" when there is no transit in it is a claim the
+            # itinerary itself contradicts. The baseline already covers
+            # going the whole way by one mode.
+            break
         option["kind"] = f"{access}+transit"
         option["label"] = ("Drive to transit" if access == ACCESS_DRIVE
                            else "Transit")
@@ -484,7 +514,7 @@ def plan(origin, destination, depart_at=None, conditions=None,
             options.append(walk_only)
 
     return {
-        "departAt": depart_at.strftime("%H:%M"),
+        "departAt": depart_at.strftime(CLOCK),
         "departDate": depart_at.strftime("%Y-%m-%d"),
         "options": _worth_choosing_between(options),
         "scheduleAvailable": schedule.available(),
@@ -513,7 +543,7 @@ def _later_departures(chain, count):
             if departure is None:
                 return []
             after = departure + dt.timedelta(seconds=1)
-            return [when.strftime("%H:%M")
+            return [when.strftime(CLOCK)
                     for when in schedule.departures_after(chain[index - 1][0], line,
                                                           after, limit=count)]
     return []

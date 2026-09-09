@@ -158,6 +158,7 @@ async function setOrigin(lat, lon){
   const reach = await res.json();
   currentTimes = reach.times;
   setLiveBadge(reach.live);
+  renderScale();
 
   let nearestId=null, nd=Infinity;
   Object.entries(currentTimes).forEach(([id,t])=>{ if(t<nd){ nd=t; nearestId=id; } });
@@ -194,7 +195,8 @@ let chosenOption = 0;
 
 async function planTrip(){
   if(!lastTrip) return;
-  const departAt = document.getElementById('departAt').value || 'now';
+  /* when.js owns this: "now" or a time to the second. */
+  const departAt = typeof departValue === 'function' ? departValue() : 'now';
   const res = await fetch('/api/trips', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({...lastTrip, departAt, alternatives: 3})});
   const plan = await res.json();
@@ -386,6 +388,7 @@ document.getElementById('newTripBtn').addEventListener('click', ()=>{
 document.getElementById('slider').addEventListener('input', (e)=>{
   document.getElementById('valMin').textContent = e.target.value;
   paintNodes();
+  renderScale();
 });
 
 loadNetwork();
@@ -393,6 +396,58 @@ loadNetwork();
 loadLiveStatus();
 setInterval(loadLiveStatus, 60000);
 
-/* Changing the departure time replans rather than rescaling the old answer:
- * a different time is a different set of trains. */
-document.getElementById('departAt').addEventListener('change', planTrip);
+/* ---------------------------------------------------------------------------
+   The reach scale
+   ---------------------------------------------------------------------------
+   Drawn from lerpColor, the same ramp the heat radar and the stop markers
+   use, so the legend and the map are the same statement. It used to be two
+   bare numbers with no visual relationship to anything on screen, which
+   meant reading the map required guessing what the colours meant.
+
+   Distances come from the reach itself: the furthest stop inside the current
+   time limit, straight-line, which is the honest way to express "how far is
+   thirty minutes" for a network where that depends entirely on direction. */
+function renderScale(){
+  const host = document.getElementById('reachScale');
+  if(!host) return;
+  const limit = parseFloat(document.getElementById('slider').value);
+
+  const ramp = [];
+  for(let i = 0; i <= 10; i++) ramp.push(`${lerpColor(i / 10)} ${i * 10}%`);
+  const bar = `<div class="scaleBar" style="background:linear-gradient(90deg,${ramp.join(',')});"></div>`;
+
+  let reachKm = null, reachStops = 0;
+  if(currentTimes && originLatLng){
+    let furthest = 0;
+    Object.entries(currentTimes).forEach(([id, mins]) => {
+      if(mins > limit) return;
+      const n = NETWORK.nodes[id];
+      if(!n) return;
+      reachStops++;
+      const km = haversineKm(originLatLng.lat, originLatLng.lon, n.lat, n.lon);
+      if(km > furthest) furthest = km;
+    });
+    reachKm = furthest;
+  }
+
+  const ticks = `<div class="scaleTicks"><span>0 min</span>
+      <span>${Math.round(limit / 2)}</span><span>${Math.round(limit)} min</span></div>`;
+  const rows = reachKm === null ? '' : `
+    <div class="scaleRow"><span class="scaleSwatch" style="background:${lerpColor(0)};"></span>
+      ${reachStops} stops within ${Math.round(limit)} min</div>
+    <div class="scaleRow"><span class="scaleSwatch" style="background:${lerpColor(1)};"></span>
+      reaching ${fmtKm(reachKm)} out, straight line</div>`;
+
+  host.innerHTML = bar + ticks + rows;
+}
+
+/* Straight-line distance, matching the server. Duplicated deliberately and
+ * narrowly: shipping the whole routing engine to the browser to draw a
+ * legend would be worse than eleven lines of trigonometry. */
+function haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}

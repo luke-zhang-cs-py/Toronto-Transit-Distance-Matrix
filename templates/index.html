@@ -26,6 +26,14 @@
     </div>
 
     <div class="side">
+      <div class="section" id="hereCard">
+        <h2>Where you are</h2>
+        <button id="hereBtn">Use my location</button>
+        <div class="stat"><span>Accuracy</span><b id="accVal">—</b></div>
+        <div class="stat"><span>Heading</span><b id="headVal">—</b></div>
+        <div id="hereHint" class="hint"></div>
+      </div>
+
       <div class="section">
         <h2>Heat radar</h2>
         <button id="radarBtn">Heat radar: ON</button>
@@ -38,11 +46,13 @@
 
       <div class="section" id="tripCard" style="display:none;">
         <h2>Trip</h2>
-        <div class="row" style="margin-bottom:8px;">
-          <span class="label">Leaving at</span>
-          <input type="time" id="departAt" step="60"
-                 style="background:#0e1418;color:#e8eef1;border:1px solid #2a3640;
-                        border-radius:6px;padding:4px 6px;font-size:13px;">
+        <div class="segbar" id="whenMode">
+          <button class="seg sel" data-when="now">Leave now</button>
+          <button class="seg" data-when="at">Leave at…</button>
+        </div>
+        <div class="row" id="departRow" style="margin:8px 0;display:none;">
+          <span class="label">Departure</span>
+          <input type="time" id="departAt" step="1">
         </div>
         <div id="optionList"></div>
         <div id="tripDetail"></div>
@@ -57,8 +67,10 @@
           <span class="val"><span id="valMin">30</span> min</span>
         </div>
         <input type="range" id="slider" min="5" max="90" step="5" value="30">
-        <div class="legend"></div>
-        <div class="legendLabels"><span>fast</span><span>slow</span><span>past cutoff</span></div>
+        <!-- Drawn from the same colour ramp as the map, and from the current
+             reach, rather than a fixed "fast / slow" gradient that had no
+             relationship to what is on screen. -->
+        <div id="reachScale" class="scale"></div>
       </div>
 
       <div class="section">
@@ -76,5 +88,8 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <!-- After app.js: both read map, setOrigin and planTrip from it. -->
+  <script src="{{ url_for('static', filename='js/when.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/here.js') }}"></script>
 </body>
 </html>

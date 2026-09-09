@@ -14,10 +14,14 @@ app just imports `nodes` and `adj` from here.
 """
 
 from .graph import nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN
-from . import subway, streetcars, regional
+from . import subway, streetcars, regional, buses
 
 subway.build()
 streetcars.build()
 regional.build()
+# Last: its transfer edges connect generated bus stops to nodes the three
+# modules above have to have created first. Absent if the generator has not
+# been run, and the graph is then what it was before.
+buses.load()
 
 __all__ = ['nodes', 'adj', 'WALK_KMH', 'WAIT_BY_MODE', 'DEFAULT_WAIT_MIN']
