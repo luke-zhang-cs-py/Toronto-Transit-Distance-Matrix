@@ -83,10 +83,14 @@
           <span class="val"><span id="valMin">30</span> min</span>
         </div>
         <input type="range" id="slider" min="5" max="90" step="5" value="30">
-        <!-- Drawn from the same colour ramp as the map, and from the current
-             reach, rather than a fixed "fast / slow" gradient that had no
-             relationship to what is on screen. -->
-        <div id="reachScale" class="scale"></div>
+        <!-- The panel's own legend, with its labels driven by the slider and
+             two .stat rows underneath, so it reads like every other readout
+             here rather than like a widget of its own. -->
+        <div class="legend"></div>
+        <div class="legendLabels">
+          <span>0 min</span><span id="legMid">15</span><span id="legMax">30 min</span>
+        </div>
+        <div id="reachStats"></div>
       </div>
 
       <div class="section">

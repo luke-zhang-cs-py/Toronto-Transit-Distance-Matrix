@@ -44,8 +44,30 @@ async function loadLiveStatus(){
 }
 
 function fmtKm(km){ return km < 1 ? Math.round(km*1000)+' m' : km.toFixed(1)+' km'; }
+/* The reach ramp, read from the stylesheet.
+ *
+ * One palette rather than two: the legend gradient and this ramp were three
+ * different colours each, so the bar under the slider never quite matched
+ * the dots it was explaining. Read once and cached -- getComputedStyle on
+ * every one of 516 markers is not free. */
+let rampStops = null;
+
+function reachRamp(){
+  if(rampStops) return rampStops;
+  const css = getComputedStyle(document.documentElement);
+  const read = (name, fallback) => {
+    const hex = (css.getPropertyValue(name) || '').trim() || fallback;
+    const h = hex.replace('#', '');
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  };
+  rampStops = [read('--reach-fast', '#39b6ff'),
+               read('--reach-mid', '#f0d33a'),
+               read('--reach-slow', '#b23a3a')];
+  return rampStops;
+}
+
 function lerpColor(f){
-  const stops=[[57,182,255],[240,211,58],[178,58,58]];
+  const stops=reachRamp();
   let a,b,lf;
   if(f<0.5){a=stops[0];b=stops[1];lf=f/0.5;} else {a=stops[1];b=stops[2];lf=(f-0.5)/0.5;}
   const r=Math.round(a[0]+(b[0]-a[0])*lf), g=Math.round(a[1]+(b[1]-a[1])*lf), bl=Math.round(a[2]+(b[2]-a[2])*lf);
@@ -407,40 +429,37 @@ setInterval(loadLiveStatus, 60000);
    Distances come from the reach itself: the furthest stop inside the current
    time limit, straight-line, which is the honest way to express "how far is
    thirty minutes" for a network where that depends entirely on direction. */
+/* The legend's labels and the two rows under it.
+ *
+ * Uses .legend, .legendLabels and .stat -- the classes the rest of the panel
+ * already uses. The previous version invented .scaleBar, .scaleTicks,
+ * .scaleRow and .scaleSwatch to say the same things in a slightly different
+ * font at a slightly different spacing, which is what made it look bolted
+ * on. The bar itself is styled in CSS; only the numbers come from here. */
 function renderScale(){
-  const host = document.getElementById('reachScale');
-  if(!host) return;
   const limit = parseFloat(document.getElementById('slider').value);
+  const mid = document.getElementById('legMid');
+  const max = document.getElementById('legMax');
+  if(mid) mid.textContent = Math.round(limit / 2);
+  if(max) max.textContent = Math.round(limit) + ' min';
 
-  const ramp = [];
-  for(let i = 0; i <= 10; i++) ramp.push(`${lerpColor(i / 10)} ${i * 10}%`);
-  const bar = `<div class="scaleBar" style="background:linear-gradient(90deg,${ramp.join(',')});"></div>`;
-  const ticks = `<div class="scaleTicks"><span>0 min</span>
-      <span>${Math.round(limit / 2)}</span><span>${Math.round(limit)} min</span></div>`;
+  const host = document.getElementById('reachStats');
+  if(!host) return;
+  if(!currentTimes || !originLatLng){ host.innerHTML = ''; return; }
 
-  /* The distance the current reach actually covers, in the legend rather
-   * than on the map. It is the ramp's own caption: the bar says what the
-   * colours mean in minutes, this says what that comes to in kilometres. */
-  let rows = '';
-  if(currentTimes && originLatLng){
-    let stops = 0, furthest = 0;
-    Object.entries(currentTimes).forEach(([id, mins]) => {
-      if(mins > limit) return;
-      const n = NETWORK.nodes[id];
-      if(!n) return;
-      stops++;
-      const km = haversineKm(originLatLng.lat, originLatLng.lon, n.lat, n.lon);
-      if(km > furthest) furthest = km;
-    });
-    rows = `<div class="scaleRow">
-        <span class="scaleSwatch" style="background:${lerpColor(0)};"></span>
-        ${stops} stops within ${Math.round(limit)} min</div>
-      <div class="scaleRow">
-        <span class="scaleSwatch" style="background:${lerpColor(1)};"></span>
-        reaching ${fmtKm(furthest)} out, straight line</div>`;
-  }
+  let stops = 0, furthest = 0;
+  Object.entries(currentTimes).forEach(([id, mins]) => {
+    if(mins > limit) return;
+    const n = NETWORK.nodes[id];
+    if(!n) return;
+    stops++;
+    const km = haversineKm(originLatLng.lat, originLatLng.lon, n.lat, n.lon);
+    if(km > furthest) furthest = km;
+  });
 
-  host.innerHTML = bar + ticks + rows;
+  host.innerHTML =
+    `<div class="stat"><span>Stops in range</span><b>${stops}</b></div>`
+    + `<div class="stat"><span>Furthest reach</span><b>${fmtKm(furthest)}</b></div>`;
 }
 
 /* Straight-line distance, matching the server. Duplicated deliberately and
