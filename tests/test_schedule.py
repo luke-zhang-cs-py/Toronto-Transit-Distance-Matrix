@@ -193,3 +193,54 @@ def test_after_midnight_departures_belong_to_the_previous_service_day():
     # Those exist in the data, so the query has to be able to reach them.
     when = dt.datetime.combine(dt.date.today(), dt.time(0, 30))
     assert schedule.departures_after(node_id, line, when, limit=2) is not None
+
+
+# ------------------------------------------------------- date coverage
+
+def test_covers_is_about_the_date_not_the_file(tmp_path):
+    """available() answers "is there an index"; covers() answers "can it tell
+    me about this day". Conflating them made the trip planner report a
+    timetable it no longer had once the board period ended."""
+    assert schedule.load(str(tmp_path / "nope.json")) is None
+    assert schedule.available() is False
+    assert schedule.covers(dt.date.today()) is False
+
+
+def test_covers_accepts_a_datetime_as_well_as_a_date():
+    """plan() holds a datetime, so covers() has to take one without the
+    caller remembering to reduce it."""
+    if not schedule.available():
+        pytest.skip("no schedule index")
+    day = dt.datetime.strptime(schedule.covered_dates()[0], "%Y%m%d")
+    assert schedule.covers(day) is True
+    assert schedule.covers(day.date()) is True
+
+
+def test_covers_is_true_across_the_whole_covered_range():
+    if not schedule.available():
+        pytest.skip("no schedule index")
+    dates = schedule.covered_dates()
+    for stamp in (dates[0], dates[len(dates) // 2], dates[-1]):
+        day = dt.datetime.strptime(stamp, "%Y%m%d").date()
+        assert schedule.covers(day) is True, stamp
+
+
+def test_covers_is_false_outside_it():
+    """Both ends: before the feed starts and after it expires."""
+    if not schedule.available():
+        pytest.skip("no schedule index")
+    dates = schedule.covered_dates()
+    first = dt.datetime.strptime(dates[0], "%Y%m%d").date()
+    last = dt.datetime.strptime(dates[-1], "%Y%m%d").date()
+    assert schedule.covers(first - dt.timedelta(days=1)) is False
+    assert schedule.covers(last + dt.timedelta(days=1)) is False
+
+
+def test_covers_agrees_with_services_on():
+    """It is defined as "are there services", so the two must not drift."""
+    if not schedule.available():
+        pytest.skip("no schedule index")
+    last = dt.datetime.strptime(schedule.covered_dates()[-1], "%Y%m%d").date()
+    for offset in range(-2, 5):
+        day = last + dt.timedelta(days=offset)
+        assert schedule.covers(day) == bool(schedule.services_on(day)), day

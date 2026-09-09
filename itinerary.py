@@ -517,7 +517,13 @@ def plan(origin, destination, depart_at=None, conditions=None,
         "departAt": depart_at.strftime(CLOCK),
         "departDate": depart_at.strftime("%Y-%m-%d"),
         "options": _worth_choosing_between(options),
-        "scheduleAvailable": schedule.available(),
+        # Whether the timetable covers *this* date, not merely whether an
+        # index file exists. The index is a board period and expires; past its
+        # last covered date every wait falls back to the modelled figure, and
+        # reporting availability from the file's presence told the page it had
+        # timetabled precision while it did not.
+        "scheduleAvailable": schedule.covers(depart_at),
+        "scheduleIndexBuilt": schedule.available(),
         "live": conditions.live,
     }
 

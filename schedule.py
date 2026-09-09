@@ -93,7 +93,29 @@ def reset():
 
 
 def available():
+    """Is there an index at all.
+
+    Deliberately not "can it answer about a given day" -- see covers(). This
+    answers whether the file exists, which is what the build tooling and the
+    coverage report want to know.
+    """
     return load() is not None
+
+
+def covers(on):
+    """Does the index have services for this calendar date.
+
+    The distinction matters because the index is a board period, not a
+    permanent fact: it covers a couple of months and then expires. Reporting
+    `available()` as "the timetable is in use" was true of the file and false
+    of the answer -- after the last covered date every wait quietly fell back
+    to the modelled figure while the API still claimed a timetable, so a
+    reader saw timetabled precision the app did not have and had no hint the
+    index needed rebuilding.
+    """
+    if isinstance(on, dt.datetime):
+        on = on.date()
+    return bool(services_on(on))
 
 
 def built_at():

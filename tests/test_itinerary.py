@@ -352,7 +352,42 @@ def test_a_closed_line_is_not_used(static):
 def test_a_trip_says_whether_it_was_planned_live(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
     assert plan["live"] is False
-    assert plan["scheduleAvailable"] == schedule.available()
+    # Against coverage of the departure date, not against the file existing.
+    # Comparing it to available() held only while today happened to be inside
+    # the board period, which is the same wrong reference the flag itself had.
+    assert plan["scheduleAvailable"] == schedule.covers(at(17, 20))
+    assert plan["scheduleIndexBuilt"] == schedule.available()
+
+
+@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
+def test_a_departure_past_the_board_period_does_not_claim_a_timetable(static):
+    """The index is a board period, not a permanent fact.
+
+    Past its last covered date every wait falls back to the modelled figure.
+    The flag used to be computed from the file's presence, so it still said
+    "timetabled" -- the page showed a precision it did not have, and nothing
+    hinted that the index wanted rebuilding.
+    """
+    covered = schedule.covered_dates()
+    last = dt.datetime.strptime(covered[-1], "%Y%m%d").date()
+    beyond = dt.datetime.combine(last + dt.timedelta(days=7), dt.time(17, 20))
+
+    plan = itinerary.plan(UNION, FINCH, depart_at=beyond, conditions=static)
+    assert plan["scheduleAvailable"] is False, "claimed a timetable it lacks"
+    assert plan["scheduleIndexBuilt"] is True, "the file is still there"
+
+    ride = transit_option(plan)
+    assert {leg["source"] for leg in legs_of(ride, "wait")} == {"modelled"}
+
+
+@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
+def test_the_last_covered_day_still_counts_as_covered(static):
+    """An off-by-one here would expire the timetable a day early."""
+    last = dt.datetime.strptime(schedule.covered_dates()[-1], "%Y%m%d").date()
+    plan = itinerary.plan(UNION, FINCH,
+                          depart_at=dt.datetime.combine(last, dt.time(17, 20)),
+                          conditions=static)
+    assert plan["scheduleAvailable"] is True
 
 
 # -------------------------------------------------------------------- HTTP
