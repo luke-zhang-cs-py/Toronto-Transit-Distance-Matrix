@@ -408,40 +408,39 @@ setInterval(loadLiveStatus, 60000);
    time limit, straight-line, which is the honest way to express "how far is
    thirty minutes" for a network where that depends entirely on direction. */
 function renderScale(){
+  const host = document.getElementById('reachScale');
+  if(!host) return;
   const limit = parseFloat(document.getElementById('slider').value);
+
   const ramp = [];
   for(let i = 0; i <= 10; i++) ramp.push(`${lerpColor(i / 10)} ${i * 10}%`);
-  const gradient = `linear-gradient(90deg,${ramp.join(',')})`;
+  const bar = `<div class="scaleBar" style="background:linear-gradient(90deg,${ramp.join(',')});"></div>`;
+  const ticks = `<div class="scaleTicks"><span>0 min</span>
+      <span>${Math.round(limit / 2)}</span><span>${Math.round(limit)} min</span></div>`;
 
-  /* The side-panel scale: the ramp, its end labels, and nothing else. */
-  const host = document.getElementById('reachScale');
-  if(host){
-    host.innerHTML = `<div class="scaleBar" style="background:${gradient};"></div>
-      <div class="scaleTicks"><span>0 min</span>
-        <span>${Math.round(limit / 2)}</span><span>${Math.round(limit)} min</span></div>`;
+  /* The distance the current reach actually covers, in the legend rather
+   * than on the map. It is the ramp's own caption: the bar says what the
+   * colours mean in minutes, this says what that comes to in kilometres. */
+  let rows = '';
+  if(currentTimes && originLatLng){
+    let stops = 0, furthest = 0;
+    Object.entries(currentTimes).forEach(([id, mins]) => {
+      if(mins > limit) return;
+      const n = NETWORK.nodes[id];
+      if(!n) return;
+      stops++;
+      const km = haversineKm(originLatLng.lat, originLatLng.lon, n.lat, n.lon);
+      if(km > furthest) furthest = km;
+    });
+    rows = `<div class="scaleRow">
+        <span class="scaleSwatch" style="background:${lerpColor(0)};"></span>
+        ${stops} stops within ${Math.round(limit)} min</div>
+      <div class="scaleRow">
+        <span class="scaleSwatch" style="background:${lerpColor(1)};"></span>
+        reaching ${fmtKm(furthest)} out, straight line</div>`;
   }
 
-  /* The readout on the map, in the same pill as "click to set a
-   * destination", because it is describing what the map is showing. */
-  const flag = document.getElementById('reachflag');
-  if(!flag) return;
-  if(!currentTimes || !originLatLng){ flag.style.display = 'none'; return; }
-
-  let stops = 0, furthest = 0;
-  Object.entries(currentTimes).forEach(([id, mins]) => {
-    if(mins > limit) return;
-    const n = NETWORK.nodes[id];
-    if(!n) return;
-    stops++;
-    const km = haversineKm(originLatLng.lat, originLatLng.lon, n.lat, n.lon);
-    if(km > furthest) furthest = km;
-  });
-
-  document.getElementById('reachSwatch').style.background = gradient;
-  document.getElementById('reachText').innerHTML =
-    `<b>${fmtKm(furthest)}</b> out · <b>${stops}</b> stops within `
-    + `<b>${Math.round(limit)} min</b>`;
-  flag.style.display = 'flex';
+  host.innerHTML = bar + ticks + rows;
 }
 
 /* Straight-line distance, matching the server. Duplicated deliberately and

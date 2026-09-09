@@ -29,11 +29,6 @@ function hereHint(html) {
   if (el) el.innerHTML = html;
 }
 
-function hereStat(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
-}
-
 function useMyLocation() {
   if (!navigator.geolocation) {
     hereHint('This browser has no geolocation API.');
@@ -60,8 +55,6 @@ function onFix(pos) {
   const lat = pos.coords.latitude;
   const lon = pos.coords.longitude;
   const accuracy = pos.coords.accuracy;
-
-  hereStat('accVal', '±' + Math.round(accuracy) + ' m');
 
   if (hereMarker) map.removeLayer(hereMarker);
   if (hereAccuracyRing) map.removeLayer(hereAccuracyRing);
@@ -145,10 +138,14 @@ function setNeedle(degrees, live) {
 }
 
 function holdNorthUp(reason) {
+  /* The dial is the whole readout now: greyed and held at north when there
+     is no bearing to show. `reason` is kept as the element's title so the
+     distinction between "no magnetometer" and "you declined" is still
+     recoverable on hover, without another row of numbers in the panel. */
   compassLive = false;
   setNeedle(0, false);
-  hereStat('headVal', 'north up');
-  hereStat('sensorVal', reason);
+  const dial = document.getElementById('compass');
+  if (dial) dial.title = 'Compass: ' + reason + ' — dial held north-up';
 }
 
 function startCompass() {
@@ -207,14 +204,15 @@ function onOrientation(e) {
   clearTimeout(sensorWatchdog);
   userHeading = degrees;
 
-  const points = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  hereStat('headVal', Math.round(degrees) + '° ' +
-                      points[Math.round(degrees / 45) % 8]);
-  hereStat('sensorVal', 'live');
-
   /* The needle turns to your heading against a fixed north-up dial, so it
      reads the same way as the map beside it. */
   setNeedle(degrees, true);
+  const points = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dial = document.getElementById('compass');
+  if (dial) {
+    dial.title = Math.round(degrees) + '° ' +
+                 points[Math.round(degrees / 45) % 8];
+  }
 
   const off = e.webkitCompassAccuracy;
   if (typeof off === 'number' && (off < 0 || off > POOR_HEADING_DEGREES)) {
@@ -238,10 +236,8 @@ function calibrationHint(lead) {
 const hereButton = document.getElementById('hereBtn');
 if (hereButton) hereButton.onclick = useMyLocation;
 
-/* The dial is correct before anybody asks for anything: north up, held, and
-   labelled as held. A compass on a desk is not broken, it is stationary.
-   The sensor is only probed when the user asks for their location, because
-   iOS will not grant orientation except from a gesture anyway. */
-setNeedle(0, false);
-hereStat('headVal', 'north up');
-hereStat('sensorVal', window.DeviceOrientationEvent ? 'tap to enable' : 'none');
+/* The dial is correct before anybody asks for anything: north up and held.
+   A compass on a desk is not broken, it is stationary. The sensor is only
+   probed when the user asks for their location, because iOS will not grant
+   orientation except from a gesture anyway. */
+holdNorthUp(window.DeviceOrientationEvent ? 'not started' : 'no sensor');
