@@ -1,5 +1,9 @@
 # Toronto Transit Reach
 
+[![CI](https://github.com/luke-zhang-cs-py/Toronto-Transit-Distance-Matrix/actions/workflows/python-package-conda.yml/badge.svg)](https://github.com/luke-zhang-cs-py/Toronto-Transit-Distance-Matrix/actions/workflows/python-package-conda.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue.svg)](https://www.python.org/)
+
 A local Flask app that answers three questions about getting around Toronto:
 how far you can get in a given time, how to make a particular trip, and what
 time you will actually arrive.
@@ -197,3 +201,8 @@ does not use.
 is surface routes only — no subway route id appears in it — so a delayed
 train shows as its scheduled time. That is the one gap where the app can be
 confidently wrong, and it is why the wait source is on every leg.
+
+## License
+
+[MIT](LICENSE) — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and test
+conventions.
