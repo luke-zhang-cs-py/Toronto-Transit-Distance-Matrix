@@ -53,7 +53,7 @@ import heapq
 
 import realtime
 import schedule
-from network import adj, nodes
+from network import WALK_KMH, adj, nodes
 from routing import haversine_km, path_km, walk_minutes
 
 # How far somebody will walk to reach the network, and to leave it.
@@ -64,6 +64,27 @@ from routing import haversine_km, path_km, walk_minutes
 # is not a leg of a journey, it is the search admitting it failed.
 MAX_ACCESS_WALK_MIN = 25.0
 MAX_EGRESS_WALK_MIN = 25.0
+
+# Getting to the network by car, for comparison.
+#
+# 26 km/h rather than a speed limit: that is roughly what a car averages
+# across a city with lights, turns and traffic, and quoting 50 would make
+# driving look better than it is. The parking allowance is the part people
+# forget -- finding a spot at a commuter station and walking in is not free,
+# and leaving it out is what makes park-and-ride look like a strictly better
+# option than it is.
+DRIVE_KMH = 26.0
+PARK_AND_WALK_MIN = 5.0
+
+# Somebody will drive a lot further to a station than they will walk.
+MAX_ACCESS_DRIVE_MIN = 40.0
+
+ACCESS_WALK = "walk"
+ACCESS_DRIVE = "drive"
+
+# Past this, offering "just walk" as a comparison is noise rather than a
+# choice somebody is weighing.
+MAX_WALK_ONLY_MIN = 75.0
 
 # An alternative has to be a real alternative. Anything this much worse than
 # the best trip is not another way to go, it is a worse way to go, and
@@ -113,24 +134,35 @@ def _wait_for(node_id, line, moment, conditions):
     return minutes, "headway" if measured else "modelled"
 
 
-def _access_nodes(lat, lon):
-    """Nodes worth walking to from a point, with the walk in minutes."""
-    reachable = []
-    for node_id, node in nodes.items():
-        walk = walk_minutes(haversine_km(lat, lon, node["lat"], node["lon"]))
-        if walk <= MAX_ACCESS_WALK_MIN:
-            reachable.append((node_id, walk))
-    if reachable:
-        return reachable
+def drive_minutes(km):
+    """City driving, door to door, including the parking and the walk in."""
+    return km / DRIVE_KMH * 60 + PARK_AND_WALK_MIN
+
+
+def _access_nodes(lat, lon, mode=ACCESS_WALK):
+    """Nodes worth reaching from a point, with the access cost in minutes.
+
+    Driving reaches much further, so the two modes get their own caps. A
+    park-and-ride only makes sense if the station is far enough away that
+    walking was never an option, which is exactly what the wider cap
+    expresses.
+    """
+    cost = drive_minutes if mode == ACCESS_DRIVE else walk_minutes
+    cap = MAX_ACCESS_DRIVE_MIN if mode == ACCESS_DRIVE else MAX_ACCESS_WALK_MIN
+
+    reachable = [(node_id, cost(haversine_km(lat, lon, node["lat"], node["lon"])))
+                 for node_id, node in nodes.items()]
+    within = [(node_id, minutes) for node_id, minutes in reachable if minutes <= cap]
+    if within:
+        return within
     # Nothing within the cap: offer the single nearest, so a request from far
-    # outside the network gets a long walk rather than no answer.
-    nearest = min(nodes, key=lambda n: haversine_km(lat, lon, nodes[n]["lat"],
-                                                    nodes[n]["lon"]))
-    return [(nearest, walk_minutes(haversine_km(lat, lon, nodes[nearest]["lat"],
-                                                nodes[nearest]["lon"])))]
+    # outside the network gets a long access leg rather than no answer.
+    nearest = min(reachable, key=lambda pair: pair[1])
+    return [nearest]
 
 
-def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()):
+def _search(origin, destination, depart_at, conditions, banned_lines=frozenset(),
+            access=ACCESS_WALK):
     """Earliest arrival, as a chain of (node, line, clock) steps.
 
     Returns (arrival_datetime, steps) or (None, None). `steps` is the
@@ -144,7 +176,7 @@ def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()
     best = {}
     frontier = []
 
-    for node_id, walk in _access_nodes(olat, olon):
+    for node_id, walk in _access_nodes(olat, olon, access):
         arrival = depart_at + dt.timedelta(minutes=walk)
         state = (node_id, None)
         if state not in best or arrival < best[state][0]:
@@ -208,8 +240,8 @@ def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()
     return finish, chain
 
 
-def _to_legs(chain, origin, destination, depart_at, arrival):
-    """The step chain as walk / wait / ride legs with clock times."""
+def _to_legs(chain, origin, destination, depart_at, arrival, access=ACCESS_WALK):
+    """The step chain as walk / drive / wait / ride legs with clock times."""
     olat, olon = origin
     dlat, dlon = destination
     legs = []
@@ -218,9 +250,12 @@ def _to_legs(chain, origin, destination, depart_at, arrival):
     access_km = haversine_km(olat, olon, first_node["lat"], first_node["lon"])
     clock = depart_at
     if access_km > 0.01:
-        minutes = walk_minutes(access_km)
+        driving = access == ACCESS_DRIVE
+        minutes = drive_minutes(access_km) if driving else walk_minutes(access_km)
         end = clock + dt.timedelta(minutes=minutes)
-        legs.append((Leg("walk", minutes, km=round(access_km, 2),
+        legs.append((Leg("drive" if driving else "walk", minutes,
+                         km=round(access_km, 2),
+                         parkMinutes=PARK_AND_WALK_MIN if driving else None,
                          **{"from": {"name": "Start", "lat": olat, "lon": olon},
                             "to": {"name": first_node["name"],
                                    "lat": first_node["lat"], "lon": first_node["lon"]}}),
@@ -323,22 +358,32 @@ def _describe(option_legs, chain, depart_at, arrival, later):
 def _worth_choosing_between(options):
     """Distinct trips only, and only ones worth offering.
 
-    Banning a line can yield the same arrival by the same lines when the ban
-    made no difference, and it can yield a trip so much worse that presenting
-    it as a choice is misleading rather than helpful.
-    """
-    options = sorted(options, key=lambda o: o["totalMinutes"])
-    if not options:
-        return []
+    The tolerance is applied *within each kind*, not across all of them.
+    Applied globally it hid the thing being compared: from a suburb where
+    driving takes 43 minutes and transit 68, the transit trip fell outside
+    1.6x of the best option overall and vanished -- so the comparison view
+    showed only driving, which is the opposite of a comparison.
 
-    best = options[0]["totalMinutes"]
-    limit = max(best * ALTERNATIVE_TOLERANCE, best + ALTERNATIVE_SLACK_MIN)
+    Within a kind it does the job it was added for: banning a line can yield
+    a trip so much worse than the best transit trip that presenting it as a
+    choice is misleading, and the best of each kind always survives.
+    """
+    by_kind = {}
+    for option in options:
+        by_kind.setdefault(option.get("kind", "walk+transit"), []).append(option)
+
+    kept = []
+    for group in by_kind.values():
+        group.sort(key=lambda o: o["totalMinutes"])
+        best = group[0]["totalMinutes"]
+        limit = max(best * ALTERNATIVE_TOLERANCE, best + ALTERNATIVE_SLACK_MIN)
+        kept += [option for option in group if option["totalMinutes"] <= limit]
 
     seen, unique = set(), []
-    for option in options:
-        if option["totalMinutes"] > limit:
-            continue
-        key = (option["arriveAt"], tuple(option["lines"]))
+    for option in sorted(kept, key=lambda o: o["totalMinutes"]):
+        # Same arrival by the same lines is the same trip, whatever produced
+        # it -- banning a line can rediscover a route the ban did not affect.
+        key = (option["kind"], option["arriveAt"], tuple(option["lines"]))
         if key in seen:
             continue
         seen.add(key)
@@ -346,29 +391,97 @@ def _worth_choosing_between(options):
     return unique
 
 
+def _baseline(origin, destination, depart_at, mode):
+    """Making the whole trip one way, for comparison.
+
+    Not a route -- a yardstick. "Transit takes 41 minutes" means nothing on
+    its own; "41 minutes against 24 driving" is a decision. Straight-line
+    distance, so it flatters both: real roads and pavements are longer, and
+    the point is the comparison rather than the number.
+    """
+    km = haversine_km(*origin, *destination)
+    if mode == ACCESS_DRIVE:
+        # No parking allowance: driving the whole way ends at the door.
+        minutes = drive_minutes(km) - PARK_AND_WALK_MIN
+    else:
+        minutes = walk_minutes(km)
+    arrival = depart_at + dt.timedelta(minutes=minutes)
+    label = "Drive the whole way" if mode == ACCESS_DRIVE else "Walk the whole way"
+    return {
+        "kind": mode,
+        "label": label,
+        "departAt": depart_at.strftime("%H:%M"),
+        "arriveAt": arrival.strftime("%H:%M"),
+        "totalMinutes": round(minutes, 1),
+        "totalKm": round(km, 2),
+        "transfers": 0,
+        "platformWalks": 0,
+        "lines": [],
+        "via": None,
+        "waitSources": [],
+        "isBaseline": True,
+        "note": (f"Straight-line distance at {DRIVE_KMH:.0f} km/h; "
+                 "real roads are longer." if mode == ACCESS_DRIVE else
+                 f"Straight-line distance at {WALK_KMH:.1f} km/h."),
+        "legs": [{"type": mode, "minutes": round(minutes, 1),
+                  "km": round(km, 2),
+                  "startTime": depart_at.strftime("%H:%M"),
+                  "endTime": arrival.strftime("%H:%M"),
+                  "from": {"name": "Start", "lat": origin[0], "lon": origin[1]},
+                  "to": {"name": "Destination",
+                         "lat": destination[0], "lon": destination[1]}}],
+        "laterDepartures": [],
+    }
+
+
+def _transit_options(origin, destination, depart_at, conditions, alternatives,
+                     later, access):
+    """Transit trips reached by `access`, best first, with alternatives."""
+    found, banned = [], set()
+    for _attempt in range(1 + max(0, alternatives)):
+        arrival, chain = _search(origin, destination, depart_at, conditions,
+                                 frozenset(banned), access=access)
+        if arrival is None or not chain:
+            break
+        legs = _to_legs(chain, origin, destination, depart_at, arrival, access)
+        option = _describe(legs, chain, depart_at, arrival, later)
+        option["kind"] = f"{access}+transit"
+        option["label"] = ("Drive to transit" if access == ACCESS_DRIVE
+                           else "Transit")
+        option["isBaseline"] = False
+        found.append(option)
+        if option["via"] is None:
+            break                              # a pure walk: no line to ban
+        banned.add(option["via"])
+    return found
+
+
 def plan(origin, destination, depart_at=None, conditions=None,
-         alternatives=DEFAULT_ALTERNATIVES, later=DEFAULT_LATER):
+         alternatives=DEFAULT_ALTERNATIVES, later=DEFAULT_LATER,
+         compare=True):
     """Several ways to make one trip, each with clock times.
 
-    Returns {"departAt", "options": [...], "scheduleAvailable", "live"}.
-    Options are ordered by how long they take: the one that gets you there
-    first is first, which is not always the one that leaves first.
+    With `compare`, the answer includes getting to the network by car as well
+    as on foot, and driving or walking the whole way as yardsticks. A transit
+    time is only useful next to the alternative somebody would otherwise
+    choose.
+
+    Options are ordered by how long they take, so the fastest is first --
+    which is not always the one that leaves first, and not always transit.
     """
     depart_at = depart_at or dt.datetime.now().replace(second=0, microsecond=0)
     conditions = conditions or realtime.Conditions.static()
 
-    options, banned = [], set()
-    for _attempt in range(1 + max(0, alternatives)):
-        arrival, chain = _search(origin, destination, depart_at, conditions,
-                                 frozenset(banned))
-        if arrival is None or not chain:
-            break
-        legs = _to_legs(chain, origin, destination, depart_at, arrival)
-        option = _describe(legs, chain, depart_at, arrival, later)
-        options.append(option)
-        if option["via"] is None:
-            break                              # a pure walk: no line to ban
-        banned.add(option["via"])
+    options = _transit_options(origin, destination, depart_at, conditions,
+                               alternatives, later, ACCESS_WALK)
+    if compare:
+        options += _transit_options(origin, destination, depart_at, conditions,
+                                    0, later, ACCESS_DRIVE)
+        options.append(_baseline(origin, destination, depart_at, ACCESS_DRIVE))
+        walk_only = _baseline(origin, destination, depart_at, ACCESS_WALK)
+        # A three-hour walk is not a comparison, it is noise.
+        if walk_only["totalMinutes"] <= MAX_WALK_ONLY_MIN:
+            options.append(walk_only)
 
     return {
         "departAt": depart_at.strftime("%H:%M"),

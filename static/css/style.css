@@ -63,3 +63,56 @@
   .leaflet-container{background:#080a0d;font-family:'Inter',system-ui,sans-serif;}
   .leaflet-control-scale-line{background:rgba(13,17,23,.8)!important;color:var(--ink)!important;
     border-color:var(--accent)!important;font-family:'IBM Plex Mono',monospace!important;}
+
+/* ---------------------------------------------------------------------------
+   Trip options and itinerary
+   ---------------------------------------------------------------------------
+   Laid out the way a transit app is: the headline is when you arrive and how
+   long it takes, the lines are a row of coloured badges you can recognise
+   without reading, and the step-by-step detail is underneath the option you
+   picked rather than all of them at once.
+
+   The previous version printed every leg as a sentence in a bulleted list,
+   which meant the two numbers somebody actually decides on -- arrival time
+   and duration -- were buried mid-paragraph. */
+
+.optRow{display:block;width:100%;text-align:left;margin-bottom:7px;cursor:pointer;
+  background:#0e1418;border:1px solid var(--hair);border-radius:8px;padding:9px 11px;
+  color:var(--ink);font:inherit;transition:border-color .12s,background .12s;}
+.optRow:hover{border-color:#3d5561;}
+.optRow.sel{border-color:var(--accent);background:#141f26;}
+.optRow.base{background:#0c1013;border-style:dashed;}
+
+.optHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.optWhen{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;}
+.optDur{font-size:12.5px;color:var(--muted);white-space:nowrap;}
+.optMeta{margin-top:3px;font-size:11.5px;color:var(--muted);
+  display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+
+/* A line badge carries its own colour, so a route is recognised rather than
+   read. Same colours as the map, so the panel and the drawing agree. */
+.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;
+  font-weight:600;color:#0d1418;font-family:'IBM Plex Mono',monospace;}
+.badge.walk,.badge.drive{background:#4a5a63;color:#e8eef1;}
+.arrow{color:#5c6f7a;font-size:11px;}
+
+.tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  padding:1px 5px;border-radius:3px;background:#1b2a33;color:#8fa3ad;}
+.tag.live{background:#123a33;color:#4fd1b4;}
+.tag.sched{background:#1b2a33;color:#8fa3ad;}
+.tag.est{background:#3a2b12;color:#d9a441;}
+
+/* The itinerary: a spine with a dot per step, so the sequence reads as one
+   journey rather than as unrelated rows. */
+.itin{margin:10px 0 12px;padding:0;list-style:none;position:relative;}
+.itin::before{content:'';position:absolute;left:5px;top:8px;bottom:8px;
+  width:2px;background:#25333b;}
+.itin li{position:relative;padding:7px 0 7px 20px;font-size:12.5px;line-height:1.45;}
+.itin li::before{content:'';position:absolute;left:0;top:12px;width:12px;height:12px;
+  border-radius:50%;background:var(--panel);border:2px solid #3d5561;}
+.itin li.ride::before{border-color:var(--accent);background:var(--accent);}
+.itin li.waitStep::before{border-color:#d9a441;}
+.itin .when{font-family:'IBM Plex Mono',monospace;color:var(--accent);
+  font-size:11.5px;margin-right:6px;}
+.itin .sub{color:var(--muted);font-size:11.5px;}
+.optNote{font-size:11.5px;color:var(--muted);margin:-4px 0 10px;font-style:italic;}

@@ -329,10 +329,17 @@ def build(zip_path):
             log(f"      {node_id} / {line}: nearest {distance} m")
 
     log("  assembling the index...")
-    index, distances = {}, {}
+    index, distances, stop_ids = {}, {}, {}
     for node_id, by_line in matches.items():
         for line, (stop_id, distance) in by_line.items():
             distances.setdefault(node_id, {})[line] = distance
+            # The GTFS stop this node stands for, and the route id its times
+            # came from. Stored because the realtime feed is keyed by exactly
+            # this pair: without it, live arrival predictions cannot be
+            # attached to a node, which is why the first pass at realtime
+            # could only offer an average headway.
+            stop_ids.setdefault(node_id, {})[line] = {
+                "stopId": stop_id, "routeId": route_of_line[line]}
             route_id = route_of_line[line]
             for (r, s, service), times in departures.items():
                 if r == route_id and s == stop_id:
@@ -354,6 +361,7 @@ def build(zip_path):
         # 600 m away is still on the right line; it is the graph's coordinate
         # that is approximate, and this says so.
         "matchMetres": distances,
+        "stops": stop_ids,
         "unmatched": [{"node": n, "line": ln, "nearestMetres": d}
                       for n, ln, d in unmatched],
     }

@@ -88,11 +88,22 @@ def test_a_wait_comes_from_the_timetable(static):
 
 @pytest.mark.skipif(not schedule.available(), reason="no schedule index")
 def test_the_boarding_time_is_a_real_departure(static):
-    """Not "about two minutes" -- the actual next train."""
-    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
-    wait = legs_of(plan["options"][0], "wait")[0]
-    ride = legs_of(plan["options"][0], "transit")[0]
-    scheduled = schedule.departures_after("union", ride["line"], at(17, 20), limit=6)
+    """Not "about two minutes" -- the actual next train.
+
+    compare=False because the fastest option overall may be a park-and-ride
+    boarding somewhere else entirely, and this is about the transit trip.
+    """
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
+                          compare=False)
+    option = plan["options"][0]
+    wait = legs_of(option, "wait")[0]
+    ride = legs_of(option, "transit")[0]
+    # The node is found from the leg rather than assumed, so the test does not
+    # break the moment the best trip starts somewhere else.
+    from network import nodes as graph_nodes
+    node_id = next(nid for nid, node in graph_nodes.items()
+                   if node["name"] == ride["from"]["name"])
+    scheduled = schedule.departures_after(node_id, ride["line"], at(17, 20), limit=8)
     assert wait["boardAt"] in [when.strftime("%H:%M") for when in scheduled]
 
 
@@ -180,8 +191,78 @@ def test_no_option_ends_in_an_unreasonable_walk(static):
 
 def test_asking_for_no_alternatives_gives_one_trip(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
-                          alternatives=0)
+                          alternatives=0, compare=False)
     assert len(plan["options"]) == 1
+
+
+# ------------------------------------------------------- comparing the modes
+
+def test_comparing_offers_driving_as_well_as_transit(static):
+    """A transit time means nothing on its own. "41 minutes against 35
+    driving" is a decision; "41 minutes" is a number."""
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
+                          compare=True)
+    kinds = {option["kind"] for option in plan["options"]}
+    assert "walk+transit" in kinds or "drive+transit" in kinds
+    assert "drive" in kinds, "no yardstick to compare against"
+
+
+def test_a_yardstick_is_labelled_as_one(static):
+    """Driving the whole way is not a route this app planned -- it is a
+    straight line at an assumed speed, and saying so is the difference
+    between a comparison and a claim."""
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
+                          compare=True)
+    for option in plan["options"]:
+        if option.get("isBaseline"):
+            assert option["note"], "a yardstick has to say what it assumes"
+            assert option["lines"] == []
+
+
+def test_park_and_ride_charges_for_parking(static):
+    """Finding a spot at a commuter station and walking in is not free, and
+    leaving it out is what makes park-and-ride look strictly better."""
+    plan = itinerary.plan((43.81, -79.42), UNION, depart_at=at(8, 0),
+                          conditions=static, compare=True)
+    drives = [leg for option in plan["options"]
+              for leg in option["legs"] if leg["type"] == "drive"
+              and leg["to"]["name"] != "Destination"]
+    assert drives, "no park-and-ride option was offered"
+    for leg in drives:
+        assert leg["parkMinutes"] == itinerary.PARK_AND_WALK_MIN
+
+
+def test_driving_the_whole_way_does_not_charge_for_parking(static):
+    """It ends at the door."""
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
+                          compare=True)
+    baseline = next(o for o in plan["options"] if o["kind"] == "drive")
+    expected = itinerary.drive_minutes(baseline["totalKm"]) - itinerary.PARK_AND_WALK_MIN
+    assert baseline["totalMinutes"] == pytest.approx(expected, abs=0.2)
+
+
+def test_a_three_hour_walk_is_not_offered_as_a_comparison(static):
+    """It is noise, not a choice somebody is weighing."""
+    plan = itinerary.plan((43.81, -79.42), (43.60, -79.55), depart_at=at(8, 0),
+                          conditions=static, compare=True)
+    walks = [o for o in plan["options"] if o["kind"] == "walk"]
+    for option in walks:
+        assert option["totalMinutes"] <= itinerary.MAX_WALK_ONLY_MIN
+
+
+def test_every_option_says_what_kind_it_is(static):
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
+                          compare=True)
+    for option in plan["options"]:
+        assert option["kind"] in ("walk+transit", "drive+transit", "drive", "walk")
+        assert option["label"]
+
+
+def test_driving_is_slower_than_the_speed_limit_on_purpose():
+    """26 km/h is roughly what a car averages across a city with lights and
+    turns. Quoting 50 would make driving look better than it is."""
+    assert itinerary.DRIVE_KMH < 40
+    assert itinerary.drive_minutes(10) > 10 / 50 * 60
 
 
 @pytest.mark.skipif(not schedule.available(), reason="no schedule index")

@@ -64,13 +64,18 @@ function drawNetwork(){
   NETWORK.edges.forEach(([a,b,min,line])=>{
     const na = NETWORK.nodes[a], nb = NETWORK.nodes[b];
     if(!na || !nb) return;
-    let color = '#4fb6c4', weight=2.5, opacity=0.45, dash=null;
-    if(line && line.startsWith('Line 1')) { color='#f0a93a'; weight=5; opacity=0.85; }
-    else if(line && line.startsWith('Line 2')) { color='#3aa65c'; weight=5; opacity=0.85; }
-    else if(line && line.startsWith('YRT')) { color='#8e44ad'; weight=3; opacity=0.7; dash='6 6'; }
-    else if(line && line.includes('Hwy') && line.startsWith('MiWay')) { color='#b8860b'; weight=2.8; opacity=0.7; dash='3 5'; }
-    else if(line && line.startsWith('MiWay')) { color='#d97706'; weight=3; opacity=0.7; dash='6 6'; }
-    else if(line && line.startsWith('GO')) { color='#0f7a6c'; weight=3.5; opacity=0.75; dash='2 8'; }
+    /* Colour comes from lineColor, which the badges and the route overlay
+     * also use -- this had its own copy of the table, so a line could be
+     * one colour on the map and another in the panel. Weight, opacity and
+     * dash stay local: the background network is deliberately quieter than
+     * a highlighted route. */
+    const color = lineColor(line);
+    let weight=2.5, opacity=0.45, dash=null;
+    if(line && line.startsWith('Line ')) { weight=5; opacity=0.85; }
+    else if(line && line.startsWith('YRT')) { weight=3; opacity=0.7; dash='6 6'; }
+    else if(line && line.includes('Hwy') && line.startsWith('MiWay')) { weight=2.8; opacity=0.7; dash='3 5'; }
+    else if(line && line.startsWith('MiWay')) { weight=3; opacity=0.7; dash='6 6'; }
+    else if(line && line.startsWith('GO')) { weight=3.5; opacity=0.75; dash='2 8'; }
     L.polyline([[na.lat,na.lon],[nb.lat,nb.lon]], {color, weight, opacity, dashArray:dash}).addTo(map);
   });
 }
@@ -208,32 +213,85 @@ async function planTrip(){
 
 /* One row per option. The lines and the arrival time are what somebody picks
  * on, so those are what the row leads with. */
+/* Line colour, decided once. The map drew its polylines from one table and
+ * the panel had no colours at all; now a badge in the list and the line on
+ * the map are the same colour, which is what makes an option recognisable
+ * without reading it. */
+function lineColor(line){
+  if(!line) return '#4a5a63';
+  if(line.startsWith('Line 1')) return '#f0a93a';
+  if(line.startsWith('Line 2')) return '#3aa65c';
+  if(line.startsWith('Line 4')) return '#a8438f';
+  if(line.startsWith('YRT')) return '#8e44ad';
+  if(line.startsWith('MiWay')) return '#d97706';
+  if(line.startsWith('GO')) return '#0f7a6c';
+  if(line === 'Transfer') return '#4a5a63';
+  return '#4fb6c4';                      /* streetcars */
+}
+
+function badge(line){
+  const c = lineColor(line);
+  return `<span class="badge" style="background:${c};">${esc(shortLine(line))}</span>`;
+}
+
+function modeBadge(kind){
+  const label = kind === 'drive' ? 'Drive' : 'Walk';
+  return `<span class="badge ${esc(kind)}">${label}</span>`;
+}
+
+/* How long, worded the way a person says it. "68 min" is a number you have
+ * to convert; "1 hr 8 min" is a duration you already understand. */
+function fmtDur(mins){
+  const m = Math.round(mins);
+  if(m < 60) return m + ' min';
+  const h = Math.floor(m / 60);
+  return h + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : '');
+}
+
+/* Where a trip's numbers came from, as one tag rather than a sentence per
+ * leg. Live and timetabled and estimated are different claims and the
+ * strongest one a trip relies on is what the row should show. */
+function sourceTag(option){
+  const s = option.waitSources || [];
+  if(s.includes('timetable')) return '<span class="tag sched">timetabled</span>';
+  if(s.includes('headway')) return '<span class="tag live">live headway</span>';
+  if(s.includes('modelled')) return '<span class="tag est">estimated</span>';
+  return '';
+}
+
 function renderOptionList(){
   const el = document.getElementById('optionList');
   el.innerHTML = tripOptions.map((o, i) => {
-    const lines = o.lines.length ? o.lines.map(shortLine).join(' → ') : 'walk';
-    const changes = o.transfers === 0 ? 'direct'
-      : o.transfers + (o.transfers === 1 ? ' change' : ' changes');
-    return `<button class="tripOption${i === chosenOption ? ' sel' : ''}" data-i="${i}"
-              style="display:block;width:100%;text-align:left;margin-bottom:6px;
-                     background:${i === chosenOption ? '#16232b' : '#0e1418'};
-                     border:1px solid ${i === chosenOption ? '#4fb6c4' : '#2a3640'};
-                     border-radius:6px;padding:7px 9px;color:#e8eef1;cursor:pointer;">
-              <b style="font-size:13px;">${esc(o.departAt)} → ${esc(o.arriveAt)}</b>
-              <span style="color:#8fa3ad;font-size:12px;"> · ${Math.round(o.totalMinutes)} min · ${esc(changes)}</span>
-              <div style="color:#8fa3ad;font-size:11px;margin-top:2px;">${esc(lines)}</div>
-              ${o.laterDepartures.length ? `<div style="color:#6d8290;font-size:11px;">
-                 or ${o.laterDepartures.map(esc).join(', ')}</div>` : ''}
-            </button>`;
+    const chain = o.lines.length
+      ? o.lines.map(badge).join('<span class="arrow">›</span>')
+      : modeBadge(o.kind === 'drive' ? 'drive' : 'walk');
+    const access = o.kind === 'drive+transit' ? modeBadge('drive') + '<span class="arrow">›</span>' : '';
+    const changes = o.lines.length
+      ? (o.transfers === 0 ? 'direct' : o.transfers + (o.transfers === 1 ? ' change' : ' changes'))
+      : '';
+    return `<button class="optRow${i === chosenOption ? ' sel' : ''}${o.isBaseline ? ' base' : ''}"
+              data-i="${i}">
+      <div class="optHead">
+        <span class="optWhen">${esc(o.departAt)} – ${esc(o.arriveAt)}</span>
+        <span class="optDur">${esc(fmtDur(o.totalMinutes))}</span>
+      </div>
+      <div class="optMeta">${access}${chain}
+        ${changes ? '<span>· ' + esc(changes) + '</span>' : ''}
+        ${o.isBaseline ? '<span class="tag">yardstick</span>' : sourceTag(o)}
+      </div>
+    </button>`;
   }).join('');
-  el.querySelectorAll('.tripOption').forEach(b => {
+  el.querySelectorAll('.optRow').forEach(b => {
     b.onclick = () => { chosenOption = Number(b.dataset.i); renderOptionList(); drawOption(chosenOption); };
   });
 }
 
 function shortLine(name){
+  if(!name) return '';
   const m = /^Line (\d)/.exec(name);
-  return m ? 'Line ' + m[1] : name.split(' ')[0];
+  if(m) return 'Line ' + m[1];
+  if(name === 'Transfer') return 'walk';
+  return name.split(' ')[0];
 }
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
@@ -244,53 +302,71 @@ function drawOption(index){
   if(!route) return;
 
   routeLayer.clearLayers();
-  const LINE_COLORS = {};
-  NETWORK.edges.forEach(([a,b,min,line])=>{
-    if(!line) return;
-    if(line.startsWith('Line 1')) LINE_COLORS[line]='#f0a93a';
-    else if(line.startsWith('Line 2')) LINE_COLORS[line]='#3aa65c';
-    else if(line.startsWith('YRT')) LINE_COLORS[line]='#8e44ad';
-    else if(line.startsWith('MiWay')) LINE_COLORS[line]='#d97706';
-    else if(line.startsWith('GO')) LINE_COLORS[line]='#0f7a6c';
-  });
+  renderItinerary(route);
 
-  const ul = document.getElementById('steps'); ul.innerHTML='';
-  route.legs.forEach(leg=>{
-    const dist = leg.km != null ? ' · ' + fmtKm(leg.km) : '';
-    const clock = `<span class="mins">${esc(leg.startTime)}–${esc(leg.endTime)}${dist}</span>`;
-    let text;
-    if(leg.type==='walk'){
-      text = `Walk to <b>${esc(leg.to.name)}</b> ${clock}`;
-    } else if(leg.type==='transfer'){
-      text = `Change at <b>${esc(leg.to.name)}</b> ${clock}`;
-    } else if(leg.type==='wait'){
-      /* The wait is its own step, with the source named. A departure time
-       * from the timetable and one assumed from an average headway are
-       * different claims, and showing them identically would hide which is
-       * which. */
-      const how = leg.source === 'timetable' ? 'timetabled'
-                : leg.source === 'headway' ? 'from live headway' : 'estimated';
-      text = `Wait for <b>${esc(shortLine(leg.line))}</b>, board ${esc(leg.boardAt)}`
-           + ` <span class="mins">${leg.minutes.toFixed(1)} min · ${esc(how)}</span>`;
-    } else {
-      const stops = leg.stops ? ` · ${leg.stops} stops` : '';
-      text = `Ride <b>${esc(leg.line)}</b> to <b>${esc(leg.to.name)}</b>`
-           + ` <span class="mins">${esc(leg.startTime)}–${esc(leg.endTime)}${stops}${dist}</span>`;
-    }
-    const li = document.createElement('li'); li.innerHTML = text; ul.appendChild(li);
-
+  route.legs.forEach(leg => {
     if(!leg.from || leg.from.lat == null || !leg.to || leg.to.lat == null) return;
-    if(leg.type==='walk' || leg.type==='transfer'){
-      L.polyline([[leg.from.lat,leg.from.lon],[leg.to.lat,leg.to.lon]],
-        {color:'#dfe6ea', weight:3, dashArray: leg.type==='walk' ? '2 7':'1 5', opacity:0.85}).addTo(routeLayer);
-    } else if(leg.type==='transit'){
-      L.polyline([[leg.from.lat,leg.from.lon],[leg.to.lat,leg.to.lon]],
-        {color: LINE_COLORS[leg.line] || '#4fb6c4', weight:6, opacity:0.95}).addTo(routeLayer);
+    const pts = [[leg.from.lat, leg.from.lon], [leg.to.lat, leg.to.lon]];
+    if(leg.type === 'transit'){
+      L.polyline(pts, {color: lineColor(leg.line), weight:6, opacity:0.95}).addTo(routeLayer);
+    } else if(leg.type === 'drive'){
+      L.polyline(pts, {color:'#d97706', weight:4, dashArray:'8 6', opacity:0.9}).addTo(routeLayer);
+    } else if(leg.type === 'walk' || leg.type === 'transfer'){
+      L.polyline(pts, {color:'#dfe6ea', weight:3,
+        dashArray: leg.type === 'walk' ? '2 7' : '1 5', opacity:0.85}).addTo(routeLayer);
     }
   });
-  document.getElementById('tripTotal').textContent =
-    `${route.departAt}–${route.arriveAt} · ${Math.round(route.totalMinutes)} min`;
-  document.getElementById('tripDist').textContent = fmtKm(route.totalKm);
+}
+
+/* The steps for the chosen option.
+ *
+ * Each row leads with the clock time, because that is what somebody checks
+ * against their own watch, and the verb comes second. A wait is its own row
+ * rather than folded into the ride: "wait 2 min, board 17:22" is actionable
+ * and "the ride takes 40 minutes including a wait" is not. */
+function renderItinerary(route){
+  const el = document.getElementById('tripDetail');
+  if(!route){ el.innerHTML = ''; return; }
+
+  const rows = route.legs.map(leg => {
+    const when = `<span class="when">${esc(leg.startTime)}</span>`;
+    const dist = leg.km != null && leg.km > 0 ? ` · ${fmtKm(leg.km)}` : '';
+    if(leg.type === 'walk'){
+      return `<li><div>${when}Walk to <b>${esc(leg.to.name)}</b></div>
+        <div class="sub">${fmtDur(leg.minutes)}${dist}</div></li>`;
+    }
+    if(leg.type === 'drive'){
+      const park = leg.parkMinutes ? `, incl. ${leg.parkMinutes} min to park and walk in` : '';
+      return `<li><div>${when}Drive to <b>${esc(leg.to.name)}</b></div>
+        <div class="sub">${fmtDur(leg.minutes)}${dist}${esc(park)}</div></li>`;
+    }
+    if(leg.type === 'transfer'){
+      return `<li><div>${when}Change at <b>${esc(leg.to.name)}</b></div>
+        <div class="sub">${fmtDur(leg.minutes)} on foot</div></li>`;
+    }
+    if(leg.type === 'wait'){
+      /* Naming the source is the point. A timetabled departure and a figure
+       * assumed from an average headway are different claims, and showing
+       * them identically would hide which one you are trusting. */
+      const how = leg.source === 'timetable' ? '<span class="tag sched">timetabled</span>'
+                : leg.source === 'headway' ? '<span class="tag live">live headway</span>'
+                : '<span class="tag est">estimated</span>';
+      return `<li class="waitStep"><div>${when}Wait for ${badge(leg.line)}
+          — board <b>${esc(leg.boardAt)}</b></div>
+        <div class="sub">${fmtDur(leg.minutes)} ${how}</div></li>`;
+    }
+    const stops = leg.stops ? `${leg.stops} stop${leg.stops === 1 ? '' : 's'}` : '';
+    return `<li class="ride"><div>${when}${badge(leg.line)}
+        to <b>${esc(leg.to.name)}</b></div>
+      <div class="sub">${fmtDur(leg.minutes)}${stops ? ' · ' + stops : ''}${dist}</div></li>`;
+  }).join('');
+
+  const later = route.laterDepartures && route.laterDepartures.length
+    ? `<div class="optNote">Or catch the ${route.laterDepartures.map(esc).join(', ')}.</div>`
+    : '';
+  const note = route.note ? `<div class="optNote">${esc(route.note)}</div>` : '';
+
+  el.innerHTML = `<ul class="itin">${rows}</ul>${later}${note}`;
 }
 
 map.on('click', (e)=>{

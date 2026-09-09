@@ -210,7 +210,12 @@ def api_route():
 def api_trips():
     """Several ways to make one trip, for a departure time, with clock times.
 
-    body {olat, olon, dlat, dlon, departAt?, alternatives?, later?, live?}
+    body {olat, olon, dlat, dlon, departAt?, alternatives?, later?,
+          compare?, live?}
+
+    With compare (the default) the answer also includes driving to the
+    network and driving or walking the whole way, so the transit time sits
+    next to what somebody would otherwise do.
 
     Separate from /api/route rather than replacing it: /api/route answers a
     duration for the map, this answers "what time do I arrive", and the two
@@ -222,12 +227,16 @@ def api_trips():
     depart_at = _depart_at(body)
     alternatives = _count(body, 'alternatives', itinerary.DEFAULT_ALTERNATIVES, 0, 5)
     later = _count(body, 'later', itinerary.DEFAULT_LATER, 0, 8)
+    # Comparison on by default: a transit time is only useful next to the
+    # alternative somebody would otherwise choose.
+    compare = (body or {}).get('compare', True) is not False
 
     return jsonify(itinerary.plan((olat, olon), (dlat, dlon),
                                   depart_at=depart_at,
                                   conditions=_conditions(body),
                                   alternatives=alternatives,
-                                  later=later))
+                                  later=later,
+                                  compare=compare))
 
 
 @app.route('/api/live')
