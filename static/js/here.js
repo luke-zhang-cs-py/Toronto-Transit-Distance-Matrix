@@ -116,27 +116,68 @@ function onFixFailed(err) {
    event is flagged absolute — so a bearing derived from it can be
    arbitrarily wrong while looking perfectly stable.
 
-   Desktop browsers usually have no magnetometer at all. That is worth
-   saying once rather than leaving the field empty forever. */
+   A laptop has no magnetometer, so there is nothing to point at. Rather
+   than an empty field, the dial is drawn north-up and held there, labelled
+   as fixed: that is still a true statement about which way the map is drawn,
+   and it is what a compass on a desk does. A phone that reports a real
+   bearing gets a needle that moves.
+
+   Which of the two you get is decided by whether usable events actually
+   arrive, not by sniffing the user agent. A tablet with a broken
+   magnetometer and a desktop with none should behave the same, and a phone
+   whose browser hides the sensor behind a permission the user declined is
+   not a phone for this purpose. So: attach, wait, and see. */
+const SENSOR_GRACE_MS = 1500;
+
+let compassLive = false;
+let sensorWatchdog = null;
+
+/* Where the needle points, and whether it is a live bearing.
+ *
+ * `fixed` is the honest default. A grey needle at north says "this is the
+ * map's north, not your heading"; a red one that never moves would be a
+ * bearing claim, and it would be wrong the moment somebody turned around. */
+function setNeedle(degrees, live) {
+  const needle = document.getElementById('needle');
+  const dial = document.getElementById('compass');
+  if (needle) needle.style.transform = 'rotate(' + (degrees || 0) + 'deg)';
+  if (dial) dial.classList.toggle('idle', !live);
+}
+
+function holdNorthUp(reason) {
+  compassLive = false;
+  setNeedle(0, false);
+  hereStat('headVal', 'north up');
+  hereStat('sensorVal', reason);
+}
+
 function startCompass() {
   const Orientation = window.DeviceOrientationEvent;
   if (!Orientation) {
-    hereStat('headVal', 'no sensor');
+    holdNorthUp('none');
     return;
   }
 
   const attach = () => {
     window.addEventListener('deviceorientationabsolute', onOrientation, true);
     window.addEventListener('deviceorientation', onOrientation, true);
+    /* Listening is not the same as receiving. Desktop Chrome fires
+       deviceorientation with every field null, and some browsers fire
+       nothing at all, so nothing here is believed until a usable heading
+       turns up. */
+    clearTimeout(sensorWatchdog);
+    sensorWatchdog = setTimeout(() => {
+      if (!compassLive) holdNorthUp('not reporting');
+    }, SENSOR_GRACE_MS);
   };
 
   if (typeof Orientation.requestPermission === 'function') {
     Orientation.requestPermission()
       .then((state) => {
         if (state === 'granted') attach();
-        else hereStat('headVal', 'permission refused');
+        else holdNorthUp('permission refused');
       })
-      .catch(() => hereStat('headVal', 'unavailable'));
+      .catch(() => holdNorthUp('unavailable'));
   } else {
     attach();
   }
@@ -150,17 +191,30 @@ function onOrientation(e) {
     degrees = 360 - e.alpha;                        /* absolute, so usable */
   }
 
-  if (degrees === null) {
-    hereStat('headVal', 'relative only');
-    calibrationHint('<b>The compass is reporting a relative angle rather than ' +
-                    'a true bearing.</b>');
+  if (degrees === null || Number.isNaN(degrees)) {
+    /* A relative alpha is not a bearing. Rotating the needle by it would
+       move convincingly and point nowhere in particular, which is worse
+       than not moving. */
+    if (!compassLive) holdNorthUp('relative only');
+    if (typeof e.alpha === 'number') {
+      calibrationHint('<b>The compass is reporting a relative angle rather ' +
+                      'than a true bearing.</b>');
+    }
     return;
   }
 
+  compassLive = true;
+  clearTimeout(sensorWatchdog);
   userHeading = degrees;
+
   const points = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   hereStat('headVal', Math.round(degrees) + '° ' +
                       points[Math.round(degrees / 45) % 8]);
+  hereStat('sensorVal', 'live');
+
+  /* The needle turns to your heading against a fixed north-up dial, so it
+     reads the same way as the map beside it. */
+  setNeedle(degrees, true);
 
   const off = e.webkitCompassAccuracy;
   if (typeof off === 'number' && (off < 0 || off > POOR_HEADING_DEGREES)) {
@@ -183,3 +237,11 @@ function calibrationHint(lead) {
 
 const hereButton = document.getElementById('hereBtn');
 if (hereButton) hereButton.onclick = useMyLocation;
+
+/* The dial is correct before anybody asks for anything: north up, held, and
+   labelled as held. A compass on a desk is not broken, it is stationary.
+   The sensor is only probed when the user asks for their location, because
+   iOS will not grant orientation except from a gesture anyway. */
+setNeedle(0, false);
+hereStat('headVal', 'north up');
+hereStat('sensorVal', window.DeviceOrientationEvent ? 'tap to enable' : 'none');

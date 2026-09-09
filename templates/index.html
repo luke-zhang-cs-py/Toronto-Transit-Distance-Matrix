@@ -23,14 +23,46 @@
     <div class="mapcard">
       <div id="map"></div>
       <div class="modeflag" id="modeflag"><span class="dot"></span><span id="modeflagText">Loading network…</span></div>
+      <!-- The reach readout sits on the map in the same idiom as the mode
+           flag above, because it is describing what the map is showing. In
+           the side panel it was a column of numbers you had to look away
+           from the map to read. -->
+      <div class="reachflag" id="reachflag" style="display:none;">
+        <span class="reachSwatch" id="reachSwatch"></span>
+        <span id="reachText"></span>
+      </div>
     </div>
 
     <div class="side">
       <div class="section" id="hereCard">
         <h2>Where you are</h2>
         <button id="hereBtn">Use my location</button>
-        <div class="stat"><span>Accuracy</span><b id="accVal">—</b></div>
-        <div class="stat"><span>Heading</span><b id="headVal">—</b></div>
+        <div class="compassRow">
+          <!-- The dial is fixed with north up and the needle turns, which is
+               what a held compass does. Static on a machine with no
+               magnetometer rather than hidden: a north-up dial is still a
+               true statement about the map. -->
+          <div class="compass" id="compass">
+            <svg viewBox="0 0 100 100" aria-label="compass">
+              <circle class="cRing" cx="50" cy="50" r="46"/>
+              <line class="cTick" x1="50" y1="6"  x2="50" y2="14"/>
+              <line class="cTick" x1="94" y1="50" x2="86" y2="50"/>
+              <line class="cTick" x1="50" y1="94" x2="50" y2="86"/>
+              <line class="cTick" x1="6"  y1="50" x2="14" y2="50"/>
+              <text class="cLabel" x="50" y="24">N</text>
+              <g id="needle">
+                <polygon class="cNeedle" points="50,16 57,54 50,48 43,54"/>
+                <polygon class="cTail"   points="50,84 43,46 50,52 57,46"/>
+              </g>
+              <circle class="cHub" cx="50" cy="50" r="3.5"/>
+            </svg>
+          </div>
+          <div class="compassStats">
+            <div class="stat"><span>Accuracy</span><b id="accVal">—</b></div>
+            <div class="stat"><span>Heading</span><b id="headVal">—</b></div>
+            <div class="stat"><span>Sensor</span><b id="sensorVal">—</b></div>
+          </div>
+        </div>
         <div id="hereHint" class="hint"></div>
       </div>
 
