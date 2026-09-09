@@ -19,10 +19,10 @@ jobs:
         python-version: ['3.10', '3.12']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -45,4 +45,13 @@ jobs:
         # used to sit here. The suite asserts the same thing and rather more:
         # that the graph is one connected network, that a trip's legs add up
         # to its own total, and that a malformed request is a 400.
+        #
+        # Note what this runner does not have: schedule_index.json is
+        # gitignored derived data, so every run here takes the modelled-wait
+        # path rather than the timetabled one. Boarding waits are longer,
+        # which reorders the trip options -- driving comes first for trips
+        # that transit wins locally. Three tests read options[0] as "the
+        # transit trip" and were red here for six commits while green on a
+        # machine that had the index built. If you are debugging a failure
+        # that will not reproduce, build the index or move it aside.
         run: pytest -q

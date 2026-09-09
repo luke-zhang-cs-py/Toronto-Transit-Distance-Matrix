@@ -32,6 +32,24 @@ def legs_of(option, kind):
     return [leg for leg in option["legs"] if leg["type"] == kind]
 
 
+def transit_option(plan):
+    """The fastest option that actually rides something.
+
+    Not options[0]. Options are ordered by duration across every kind, so
+    the first one is whichever is quickest -- and for Union to Finch that is
+    driving whenever the boarding wait is modelled at four minutes instead
+    of read from the timetable. A test about how a ride is structured has to
+    ask for a ride; asking for "the best option" makes it depend on whether
+    a gitignored index happens to be on the machine, which is how this
+    passed locally and failed in CI for six commits.
+    """
+    for option in plan["options"]:
+        if option["kind"].endswith("+transit"):
+            return option
+    raise AssertionError(
+        "no transit option in " + repr([o["kind"] for o in plan["options"]]))
+
+
 # ------------------------------------------------------------- clock times
 
 def test_a_trip_reports_when_it_starts_and_ends(static):
@@ -82,7 +100,7 @@ def test_leaving_later_arrives_later(static):
                     reason="no schedule index; run tools_build_schedule.py")
 def test_a_wait_comes_from_the_timetable(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
-    waits = legs_of(plan["options"][0], "wait")
+    waits = legs_of(transit_option(plan), "wait")
     assert waits, "boarding a train means waiting for it"
     assert waits[0]["source"] == "timetable"
     dt.datetime.strptime(waits[0]["boardAt"], itinerary.CLOCK)
@@ -126,9 +144,9 @@ def test_staying_on_a_train_through_a_station_is_free(static):
     """The reason the search state has to include the line: riding through
     an interchange must not be charged as a change."""
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
-    best = plan["options"][0]
-    assert len(legs_of(best, "transit")) == 1, "one line, one ride"
-    assert best["transfers"] == 0
+    ride = transit_option(plan)
+    assert len(legs_of(ride, "transit")) == 1, "one line, one ride"
+    assert ride["transfers"] == 0
 
 
 def test_a_wait_falls_back_when_the_timetable_cannot_answer(static):
@@ -170,17 +188,59 @@ def test_options_are_ordered_by_how_long_they_take(static):
     assert totals == sorted(totals)
 
 
+def test_the_fastest_option_is_not_always_transit(static):
+    """The contract the rest of this file has to respect.
+
+    Ordering is by duration across every kind, so driving can come first --
+    and for Union to Finch it does whenever the boarding wait is modelled
+    rather than timetabled. Nothing pinned this, so three tests quietly read
+    options[0] as "the transit trip" and went red in CI for six commits
+    while passing on a machine that had the index built.
+    """
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
+    kinds = [option["kind"] for option in plan["options"]]
+    assert "drive" in kinds, "driving is always offered as a yardstick"
+    # Whatever leads, a trip between two stations always has a way to ride.
+    assert any(kind.endswith("+transit") for kind in kinds)
+    assert transit_option(plan)["totalMinutes"] > 0
+
+
+def test_a_transit_option_survives_without_the_timetable(static, monkeypatch):
+    """The configuration CI actually runs.
+
+    schedule_index.json is gitignored -- derived data that goes stale with
+    the board period -- so CI has never had one and every run takes the
+    modelled-wait path. That path needs a test that does not depend on the
+    file being absent, or it is only covered by accident.
+    """
+    monkeypatch.setattr(schedule, "load", lambda *a, **k: None)
+    monkeypatch.setattr(schedule, "available", lambda: False)
+    plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
+    ride = transit_option(plan)
+    assert plan["scheduleAvailable"] is False
+    assert legs_of(ride, "transit"), "still rides a train"
+    sources = {leg["source"] for leg in legs_of(ride, "wait")}
+    assert sources == {"modelled"}, sources
+
+
 def test_an_absurd_alternative_is_not_offered(static):
     """Banning the useful line leaves a search that "succeeds" by riding
     partway and walking for two and a half hours. That is the search
     admitting it failed, not a second option."""
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static,
                           alternatives=4)
-    best = plan["options"][0]["totalMinutes"]
+    # Per kind, because that is what the code guarantees. Checked against
+    # options[0] it asserted a global tolerance that _worth_choosing_between
+    # deliberately gave up: applied across kinds it hid transit whenever
+    # driving was faster, which is the opposite of a comparison.
+    by_kind = {}
     for option in plan["options"]:
-        assert option["totalMinutes"] <= max(
-            best * itinerary.ALTERNATIVE_TOLERANCE,
-            best + itinerary.ALTERNATIVE_SLACK_MIN)
+        by_kind.setdefault(option["kind"], []).append(option["totalMinutes"])
+    for kind, totals in by_kind.items():
+        best = min(totals)
+        limit = max(best * itinerary.ALTERNATIVE_TOLERANCE,
+                    best + itinerary.ALTERNATIVE_SLACK_MIN)
+        assert max(totals) <= limit, kind
 
 
 def test_no_option_ends_in_an_unreasonable_walk(static):
@@ -271,10 +331,11 @@ def test_driving_is_slower_than_the_speed_limit_on_purpose():
 def test_later_departures_are_offered_for_the_same_routing(static):
     """What somebody actually wants when deciding whether to hurry."""
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
-    later = plan["options"][0]["laterDepartures"]
+    ride = transit_option(plan)
+    later = ride["laterDepartures"]
     assert later, "the timetable knows when the next ones are"
     assert later == sorted(later)
-    boarded = legs_of(plan["options"][0], "wait")[0]["boardAt"]
+    boarded = legs_of(ride, "wait")[0]["boardAt"]
     assert all(when > boarded for when in later)
 
 
