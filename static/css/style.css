@@ -45,7 +45,12 @@
 
   .legend{height:6px;border-radius:3px;margin-top:12px;
     background:linear-gradient(90deg,var(--reach-fast),var(--reach-mid),var(--reach-slow));}
-  .legendLabels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px;}
+  /* Numbers, so IBM Plex Mono at 11.5px like every other number in the
+     panel -- .mins, .itin .when, .itin .sub. It was 10px Inter: the only
+     10px in the stylesheet, and the only place a figure was set in the body
+     font, which is what made the legend read as a different program. */
+  .legendLabels{display:flex;justify-content:space-between;margin-top:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);}
 
   .stat{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:6px 0;}
   .stat span{color:var(--muted);}
@@ -103,7 +108,7 @@
 .badge.walk,.badge.drive{background:#4a5a63;color:#e8eef1;}
 .arrow{color:#5c6f7a;font-size:11px;}
 
-.tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+.tag{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
   padding:1px 5px;border-radius:3px;background:#1b2a33;color:#8fa3ad;}
 .tag.live{background:#123a33;color:#4fd1b4;}
 .tag.sched{background:#1b2a33;color:#8fa3ad;}

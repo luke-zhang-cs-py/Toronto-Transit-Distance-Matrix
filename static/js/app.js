@@ -186,7 +186,7 @@ async function setOrigin(lat, lon){
   Object.entries(currentTimes).forEach(([id,t])=>{ if(t<nd){ nd=t; nearestId=id; } });
   if(nearestId){
     document.getElementById('stName').textContent = NETWORK.nodes[nearestId].name;
-    document.getElementById('stWalk').textContent = nd.toFixed(1)+' min';
+    document.getElementById('stWalk').textContent = fmtMinSec(nd);
   }
   paintNodes();
   if(radarOn) refreshHeatRadar();
@@ -270,6 +270,18 @@ function fmtDur(mins){
   if(m < 60) return m + ' min';
   const h = Math.floor(m / 60);
   return h + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : '');
+}
+
+/* Minutes and seconds, for a short figure where rounding to the minute
+ * throws away most of the answer. "0.4 min" is a number you have to convert;
+ * "24 s" is a walk. The rest of the app already reports departures to the
+ * second, so this is the same precision in the same place. */
+function fmtMinSec(mins){
+  const total = Math.max(0, Math.round(mins * 60));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if(m === 0) return s + ' s';
+  return m + ' min ' + String(s).padStart(2, '0') + ' s';
 }
 
 /* Where a trip's numbers came from, as one tag rather than a sentence per
