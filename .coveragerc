@@ -1,6 +1,9 @@
 [run]
 omit =
     tests/*
+    # Developer scripts, not shipped code. tools/refresh_figures.py keeps
+    # the published figures true and is run by hand.
+    tools/*
     # A one-shot build tool: it streams a 207 MB GTFS archive and writes
     # an index. Exercising it in the suite would mean shipping the archive.
     tools_build_schedule.py

@@ -4,6 +4,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue.svg)](https://www.python.org/)
 
+**[Read the overview →](https://luke-zhang-cs-py.github.io/Toronto-Transit-Distance-Matrix/)**
+— where each number comes from and how much to trust it, the graph it
+searches, and every bug this thing has had.
+
 A local Flask app that answers three questions about getting around Toronto:
 how far you can get in a given time, how to make a particular trip, and what
 time you will actually arrive.
@@ -70,7 +74,7 @@ toronto_transit/
 ├── static/
 │   ├── css/style.css       all styling
 │   └── js/app.js           map rendering, heat radar, trip options
-├── tests/                  112 tests, 89% coverage
+├── tests/                  the suite; fixtures instead of the network
 │   └── fixtures/           recorded GTFS-realtime feeds, so tests need no network
 ├── requirements.txt
 └── README.md
@@ -173,9 +177,20 @@ flowchart TD
 ## Tests
 
 ```bash
-pytest -q                       # 112 tests
-pytest -q --cov=. --cov-report=term
+pytest -q
+pytest -q --cov=. --cov-report=term-missing
 ```
+
+175 tests, 93% of 1,019 statements. That figure is itself checked:
+`tests/test_published_figures.py` measures the repository and compares it with
+what the README and the published overview claim, because both had gone stale
+— the project layout above said 112 tests and 89% while the suite had moved
+on. `python tools/refresh_figures.py` rewrites them.
+
+The uncovered 7% is almost entirely where the network is: the two-step fetch
+(urllib, then curl), the background refresher thread, and the `__main__`
+block that starts the server. None of it is reachable from a suite that
+refuses to make a request.
 
 They never touch the network: the GTFS-realtime tests run against two
 recorded feeds in `tests/fixtures`, one of which contains a real Line 2
@@ -185,7 +200,7 @@ specific.
 
 ## What could be upgraded
 
-**The graph is hand-built.** 128 stops on an approximated grid — the
+**The graph is hand-built.** 516 stops on an approximated grid — the
 streetcar nodes sit a few hundred metres from the real stops, which the
 schedule index records per match so it is visible rather than assumed away.
 Nine node-line pairs have no stop within 900 m and fall back to modelled

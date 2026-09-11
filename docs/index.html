@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toronto Transit Reach — overview</title>
+<meta name="description" content="A local Flask app that answers how far you can get in Toronto in a given time, how to make a particular trip, and what time you will arrive — against the TTC's own timetable and its live feed, with the source of every wait on the page.">
+<meta property="og:title" content="Toronto Transit Reach">
+<!-- No count in here. A figure typed into a meta tag is one nothing on the
+     page derives, so it is the first thing to go stale. -->
+<meta property="og:description" content="Reachability, trips and arrival times across Toronto, computed locally against the TTC's open timetable and live feed. No API key. Every wait says where it came from.">
+<meta property="og:type" content="website">
+<style>
+/* The warm surface this family of pages uses. The marks on top come from the
+ * validated palette and were re-run against *this* surface, because contrast
+ * only means anything against the colour the chart actually sits on:
+ *
+ *   series  #2a78d6  on #fffdf7   all five checks PASS (light)
+ *   series  #3987e5  on #1a1a19   all five checks PASS (dark)
+ *   good    #0ca30c  3.30:1
+ *   warning #fab219  1.80:1  sub-3:1 BY DESIGN -> always icon + label
+ *   crit    #d03b3b  4.72:1
+ *
+ * Run as a categorical set the status colours fail on #fab219, and are meant
+ * to: status is not a categorical palette, and amber is legal only with a
+ * glyph and a word beside it. Every use of it here has both.
+ *
+ * Dark is a selected set stepped for the dark surface, not an inversion. */
+.viz-root {
+  color-scheme: light;
+  --plane:     #ece6d6;
+  --surface:   #fffdf7;
+  --ink:       #12161d;
+  --ink-2:     #3c4453;
+  --ink-muted: #8d7a52;
+  --grid:      #ece6d6;
+  --ring:      #ded5bf;
+  --code-bg:   #f6f1e4;
+  --series:    #2a78d6;
+  --track:     #ece6d6;
+  --good:      #0ca30c;
+  --warning:   #fab219;
+  --critical:  #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --plane: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+    --grid: #2c2c2a; --ring: #383835; --code-bg: #21201e;
+    --series: #3987e5; --track: #2c2c2a;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --plane: #0d0d0d; --surface: #1a1a19;
+  --ink: #ffffff; --ink-2: #c3c2b7; --ink-muted: #898781;
+  --grid: #2c2c2a; --ring: #383835; --code-bg: #21201e;
+  --series: #3987e5; --track: #2c2c2a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+.viz-root {
+  --text: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 34px 24px 44px;
+  font: 15px/1.55 var(--text);
+  background: var(--plane); color: var(--ink);
+  min-height: 100vh;
+}
+main { max-width: 980px; margin: 0 auto; }
+
+.crumb {
+  margin: 0 0 6px; font: 400 12px var(--mono); color: var(--ink-muted);
+  letter-spacing: .02em;
+}
+h1 { font-size: 23px; margin: 0 0 5px; letter-spacing: -0.2px; }
+.lede { color: var(--ink-2); margin: 0; font-size: 15px; max-width: 68ch; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+button, .btn {
+  font: 400 13px var(--text); cursor: pointer; text-decoration: none;
+  display: inline-block;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--ring); border-radius: 8px; padding: 7px 12px;
+}
+button:hover, .btn:hover { border-color: var(--ink-muted); }
+button[aria-pressed="true"] { border-color: var(--series); color: var(--series); }
+
+/* ------------------------------------------------------------ stat tiles */
+/* A bare stat tile is the one form that ships without a hover layer: there is
+ * no plot to interrogate, just the figure and what it counts. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); gap: 12px; margin: 26px 0 10px; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 16px; }
+.tile .k { display: block; color: var(--ink-2); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.tile .v { display: block; margin-top: 3px; font: 600 27px/1.12 var(--text); font-variant-numeric: tabular-nums; }
+.tile .n { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 12px; }
+
+.note { color: var(--ink-muted); font-size: 13px; max-width: 80ch; margin: 12px 0 0; }
+
+/* ---------------------------------------------------------------- panels */
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 17px 19px; margin-top: 22px; }
+.panel h2 { margin: 0 0 2px; font-size: 15px; }
+.panel h3 { margin: 20px 0 6px; font-size: 13px; color: var(--ink-2); }
+.panel .sub { margin: 0 0 14px; color: var(--ink-2); font-size: 13px; max-width: 76ch; }
+.panel p { font-size: 14px; color: var(--ink-2); max-width: 76ch; }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 22px; }
+
+/* Thin marks on a recessive track, 4px rounding on the data end only so the
+ * mark stays anchored flat to the baseline it grows from. */
+.bars { display: grid; gap: 9px; }
+/* 150px for the label, not the 118px the sibling pages use: the longest
+   module name here is network/streetcars.py, which measured 144px and was
+   being clipped — a clipped name is one the reader cannot look up. */
+.bar { display: grid; grid-template-columns: 150px 1fr 92px; gap: 12px; align-items: center; }
+.bar .lab { font: 400 12.5px var(--mono); color: var(--ink-2); }
+.bar .rail { position: relative; height: 12px; background: var(--track); border-radius: 3px; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--series); border-radius: 0 4px 4px 0; }
+.bar .val { text-align: right; font: 500 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.bar:hover .rail { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ----------------------------------------------------------------- table */
+table { width: 100%; border-collapse: collapse; }
+caption { text-align: left; color: var(--ink-2); font-size: 13px; padding-bottom: 10px; }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--grid); font-size: 13px; vertical-align: top; }
+th { color: var(--ink-2); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.mono { font-family: var(--mono); font-size: 12px; }
+tr.total td { border-bottom: none; font-weight: 600; }
+[hidden] { display: none !important; }
+
+code { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); border: 1px solid var(--grid); border-radius: 4px; padding: 1px 5px; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--grid); border-radius: 8px;
+  padding: 13px 15px; overflow-x: auto;
+  font: 12.5px/1.7 var(--mono); color: var(--ink); margin: 12px 0 0;
+}
+
+/* Numbered steps. */
+.flow { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.flow li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+.step {
+  font: 500 11px var(--mono); color: var(--series);
+  border: 1px solid var(--ring); border-radius: 5px;
+  text-align: center; padding: 1px 0; height: 20px;
+}
+
+/* Status. Never colour alone: each carries a glyph and a word, which is what
+ * makes the sub-3:1 amber legal. */
+.flag { display: inline-flex; align-items: center; gap: 5px; font: 500 11.5px var(--mono); white-space: nowrap; }
+.flag .g { font-size: 12px; }
+.flag.good { color: var(--good); }
+.flag.warn { color: var(--warning); }
+.flag.crit { color: var(--critical); }
+
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 12px 0 0; font-size: 13px; }
+dl.kv dt { color: var(--ink-2); font-family: var(--mono); font-size: 12px; }
+dl.kv dd { margin: 0; }
+
+footer { margin-top: 28px; color: var(--ink-muted); font-size: 12.5px; max-width: 86ch; }
+footer a { color: inherit; }
+</style>
+</head>
+
+<body class="viz-root" data-palette="#2a78d6">
+<main>
+
+<div class="head">
+  <div>
+    <p class="crumb">Toronto-Transit-Distance-Matrix &middot; port 5000</p>
+    <h1>Which stops you can reach, and when you would get there</h1>
+    <p class="lede">
+      A local Flask app that answers three questions about getting around
+      Toronto: how far you can get in a given time, how to make a particular
+      trip, and what time you will actually arrive. Every travel time is
+      computed here, against the TTC's own timetable and its live service
+      feed. <strong>No API key and no billing account</strong> — both feeds
+      are open, and the map tiles are plain OpenStreetMap.
+    </p>
+  </div>
+  <div class="controls">
+    <button id="themeBtn" type="button">Theme</button>
+    <button id="tableBtn" type="button" aria-pressed="false">Table view</button>
+    <a class="btn" href="https://github.com/luke-zhang-cs-py/Toronto-Transit-Distance-Matrix">Repository</a>
+    <a class="btn" id="localBtn" href="http://127.0.0.1:5000/"
+       title="Only works on a machine that is running the app">Open app (local)</a>
+  </div>
+</div>
+
+<section class="tiles" id="tiles" aria-label="Headline figures"></section>
+<p class="note" id="tilesNote"></p>
+
+<!-- ================================================= the wait sources -->
+<section class="panel">
+  <h2>Where each number comes from, and how much to trust it</h2>
+  <p class="sub">
+    Three different kinds of number appear on the same screen and they do not
+    deserve equal confidence, so every wait carries its source and the page
+    shows it. This is the app's one real opinion.
+  </p>
+  <table>
+    <caption>The source is on every leg of every trip, not a global setting.</caption>
+    <thead>
+      <tr><th>Source</th><th>Where it comes from</th><th>What it covers</th><th class="num">Confidence</th></tr>
+    </thead>
+    <tbody id="sourceBody"></tbody>
+  </table>
+  <p class="note" id="sourceNote"></p>
+</section>
+
+<!-- ======================================================= a real trip -->
+<section class="panel">
+  <h2>A trip, for a particular departure</h2>
+  <p class="sub">
+    <code>POST /api/trips</code> with a <code>departAt</code> of
+    <code>"17:20"</code>, an ISO timestamp, or <code>"now"</code>. Union to
+    Finch, planned against the timetable:
+  </p>
+  <pre id="tripSample"></pre>
+  <p>
+    Two kinds of alternative, because "another option" means two things:
+    <strong>different routings</strong> for the same departure, and
+    <strong>later departures</strong> on the same routing — which is the one
+    you want when deciding whether to hurry.
+  </p>
+</section>
+
+<!-- ==================================================== the two rules -->
+<section class="panel">
+  <h2>Two things worth knowing about the routing</h2>
+  <div class="split">
+    <div>
+      <h3>A wait is charged for every boarding</h3>
+      <p>
+        <code>routing.py</code> charges one wait, at the origin, and its
+        transfer edges cost a flat three minutes for the platform walk with no
+        wait for the next vehicle — so a trip with two changes undercounted by
+        two waits. <code>itinerary.py</code> fixes that, and fixing it forces
+        the search state: riding a train <em>through</em> a station has to be
+        free while changing lines there is not, so a state is
+        <em>(stop, line you are riding)</em> rather than just a stop.
+      </p>
+    </div>
+    <div>
+      <h3>Leaving later cannot get you there earlier</h3>
+      <p>
+        Transit is FIFO, and that property is what lets Dijkstra work on a
+        clock rather than on fixed weights. It is not an assumption left
+        implicit —
+        <code>test_leaving_later_never_arrives_earlier</code> asserts it, and
+        if it ever failed the time-dependent search would be unsound rather
+        than merely wrong.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== the timetable -->
+<section class="panel">
+  <h2>The timetable index, and why it expires</h2>
+  <p class="sub">
+    <code>tools_build_schedule.py</code> streams the TTC's 207&nbsp;MB GTFS
+    archive once and writes a small index of departures. Everything works
+    without it, on live headways and modelled waits, and every response says
+    which it used.
+  </p>
+  <dl class="kv" id="indexKv"></dl>
+  <p class="note" id="indexNote"></p>
+</section>
+
+<!-- ======================================================= the network -->
+<section class="panel">
+  <h2>The graph it searches</h2>
+  <p class="sub" id="graphSub"></p>
+  <div id="graphBars" class="bars"></div>
+  <p class="note" id="graphNote"></p>
+</section>
+
+<!-- ======================================================== the source -->
+<section class="panel" id="modulePanel">
+  <h2>Every module, by size</h2>
+  <p class="sub" id="moduleSub"></p>
+  <div id="moduleBars" class="bars"></div>
+</section>
+
+<section class="panel" id="testPanel">
+  <h2>Where the tests are</h2>
+  <p class="sub" id="testSub"></p>
+  <div id="testBars" class="bars"></div>
+</section>
+
+<section class="panel" id="tablePanel" hidden>
+  <table>
+    <caption>Every module with its size, statements, coverage and
+      what it is for. The same data as the two charts above.</caption>
+    <thead>
+      <tr><th>Module</th><th class="num">Lines</th><th class="num">Stmts</th>
+          <th class="num">Covered</th><th>What it does</th></tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</section>
+
+<!-- =========================================================== the bugs -->
+<section class="panel">
+  <h2>Bugs, and what found each one</h2>
+  <p class="sub">
+    Every one of these was real, and none was found by reading the code. The
+    suite exists because of them: it started at 38 tests in the commit that
+    fixed the first four.
+  </p>
+  <table>
+    <thead>
+      <tr><th>What was wrong</th><th>What found it</th><th class="num">State</th></tr>
+    </thead>
+    <tbody id="bugBody"></tbody>
+  </table>
+</section>
+
+<!-- =========================================================== the gaps -->
+<section class="panel">
+  <h2>What is modelled, and what is simply missing</h2>
+  <p class="sub">
+    The honest list. Each of these is a place the app can be confidently
+    wrong, which is why the wait source is on every leg rather than in a
+    footnote.
+  </p>
+  <ul class="flow" id="gapList"></ul>
+
+  <h3>The nine node-line pairs with no stop nearby</h3>
+  <p class="sub">
+    The graph is hand-built, so a node sits near a real stop rather than on
+    it. The index records the distance per match and refuses anything over
+    900&nbsp;m, which leaves these falling back to modelled waits — recorded
+    rather than assumed away.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Node</th><th>Line</th><th class="num">Nearest stop</th></tr>
+    </thead>
+    <tbody id="unmatchedBody"></tbody>
+  </table>
+</section>
+
+<footer>
+  <p id="footNote"></p>
+  <p>
+    <a href="https://github.com/luke-zhang-cs-py/Toronto-Transit-Distance-Matrix">Repository</a>
+    &middot; MIT &middot; the app runs on your own machine, on port 5000
+  </p>
+</footer>
+
+</main>
+
+<script>
+'use strict';
+
+/* Every number on this page is read from here, so the tiles, the charts and
+ * the table cannot drift apart.
+ *
+ * Measured on 11 September 2026 in the repository: `pytest -q --cov` for the
+ * statements and what is uncovered, `wc -l` for length, `pytest
+ * --collect-only -q` for the test counts, and the graph figures by importing
+ * the network package. Not estimated. tests/test_published_figures.py checks
+ * the module and test figures against a fresh measurement, so they cannot go
+ * stale quietly -- `python tools/refresh_figures.py` rewrites them. */
+
+var MODULES = [
+  { name: 'realtime.py',           lines: 559, stmts: 237, missed: 38, does: 'live headways, closures and detours from GTFS-realtime' },
+  { name: 'itinerary.py',          lines: 566, stmts: 230, missed:  8, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'app.py',                lines: 266, stmts: 117, missed:  7, does: 'the HTTP surface; six endpoints and nothing else' },
+  { name: 'schedule.py',           lines: 268, stmts: 116, missed:  5, does: 'when the next one actually leaves, from the index' },
+  { name: 'routing.py',            lines: 204, stmts: 101, missed:  2, does: 'Dijkstra reachability — the heat map' },
+  { name: 'network/regional.py',   lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
+  { name: 'gtfs.py',               lines: 115, stmts:  39, missed:  3, does: 'reads the GTFS archive; shared by both build tools' },
+  { name: 'network/buses.py',      lines:  72, stmts:  32, missed:  6, does: '28 bus routes, loaded from a built JSON file' },
+  { name: 'network/streetcars.py', lines:  96, stmts:  29, missed:  0, does: 'the downtown grid, and its subway transfers' },
+  { name: 'network/graph.py',      lines:  77, stmts:  27, missed:  2, does: 'add_node / add_edge / chain, and nothing else' },
+  { name: 'geo.py',                lines:  48, stmts:  13, missed:  0, does: 'haversine and the walk time; both tools had a copy' },
+  { name: 'network/subway.py',     lines: 102, stmts:  13, missed:  0, does: 'Line 1 and Line 2 with their extensions' },
+  { name: 'network/__init__.py',   lines:  29, stmts:   7, missed:  0, does: 'builds the graph in dependency order' }
+];
+
+/* The two build tools are omitted from coverage on purpose, and named here so
+ * the omission is visible rather than silent: each streams the 207 MB GTFS
+ * archive, so exercising them in the suite would mean shipping it. */
+var OMITTED = [
+  { name: 'tools_build_schedule.py', lines: 336, why: '207 MB of GTFS -> a departures index' },
+  { name: 'tools_build_buses.py',    lines: 472, why: 'the same archive -> network/bus_routes.json' }
+];
+
+var TESTS = [
+  { file: 'test_itinerary.py',         n: 45, of: 'departure times, transfers, and the FIFO guarantee' },
+  { file: 'test_transit.py',           n: 40, of: 'the graph, the routing, and the HTTP surface' },
+  { file: 'test_realtime.py',          n: 38, of: 'two recorded feeds, one with a real Line 2 closure' },
+  { file: 'test_geo_gtfs.py',          n: 25, of: 'the two helpers both build tools used to duplicate' },
+  { file: 'test_schedule.py',          n: 19, of: 'the index, the board period, and life without one' },
+  { file: 'test_published_figures.py', n:  8, of: 'the numbers on this page, against a fresh measurement' }
+];
+
+var TEST_LINES = 1729;
+var ROUTE_COUNT = 6;
+
+/* The graph, by importing network/ and counting. */
+var GRAPH = { nodes: 516, edges: 618, lines: 56 };
+var MODES = [
+  { mode: 'bus',     nodes: 388, wait: 7,  live: 'headway' },
+  { mode: 'subway',  nodes:  57, wait: 4,  live: 'timetable' },
+  { mode: 'tram',    nodes:  44, wait: 6,  live: 'timetable' },
+  { mode: 'yrt',     nodes:  14, wait: 8,  live: 'modelled' },
+  { mode: 'miway',   nodes:  12, wait: 10, live: 'modelled' },
+  { mode: 'go',      nodes:   1, wait: 20, live: 'modelled' }
+];
+var DEFAULT_WAIT = 6;
+
+/* Read out of schedule_index.json itself. */
+var INDEX = {
+  builtAt: '2026-09-08',
+  covers: ['2026-09-06', '2026-10-31'],
+  dates: 56,
+  stops: 480,
+  unmatched: 9,
+  maxMatchMetres: 900,
+  megabytes: 2.0,
+  archiveMegabytes: 207
+};
+
+var SOURCES = [
+  ['timetable', 'TTC static GTFS, via the built index',
+   'Both subway lines and six streetcar routes — the next actual departure',
+   'good'],
+  ['headway', 'TTC GTFS-realtime, live, refreshed every 30s',
+   'Surface routes — half the observed gap between vehicles',
+   'good'],
+  ['modelled', '<code>WAIT_BY_MODE</code>, a table of assumptions',
+   'YRT, MiWay, GO — and anything the other two do not reach',
+   'warn']
+];
+
+/* Authored prose with intentional markup, kept out of esc() deliberately --
+ * see drawBugs and drawGaps, which say so. Nothing here comes from a user. */
+var BUGS = [
+  ['A trip’s total did not equal the sum of its own legs',
+   'Union to Finch printed 45.1 minutes over legs adding up to 41.1. The gap was exactly the boarding wait, which is neither walking nor riding and so had been quietly dropped. It now goes on the first leg that is not a walk and carries a <code>wait</code> field, and <code>total</code> is summed from the segments rather than computed twice.',
+   'Checking the arithmetic on the page — both numbers were on screen', 'fixed'],
+  ['Every malformed request was a 500 with a stack trace',
+   'The handlers were <code>float(body[\'lat\'])</code> with nothing around them, so a missing key, a null, a string or a non-object body all crashed. 400 with the field named, now.',
+   'Posting a body without the fields', 'fixed'],
+  ['<code>float("nan")</code> reached the response',
+   '<code>jsonify</code> writes a bare <code>NaN</code> token, which is not valid JSON. Python’s parser tolerates it and the browser’s <code>JSON.parse</code> does not, so the page failed with an error about the response rather than about the input. Non-finite and off-the-globe coordinates are refused, and a test asserts no endpoint can emit it.',
+   'Trying the inputs <code>float()</code> accepts but JSON does not', 'fixed'],
+  ['<code>add_edge</code> skipped an edge in silence',
+   'A mistyped station id produced a quietly disconnected graph, and the only symptom is a route taking the long way round — which reads as a modelling choice rather than a typo. It logs now.',
+   'Asking why one route was implausible', 'fixed'],
+  ['Six red CI runs that were green on every local machine',
+   'The difference was one gitignored file. <code>schedule_index.json</code> is derived data that goes stale with the board period, so it is built rather than committed and CI has never had one — which makes every wait modelled, which reordered the trip options, which made <code>options[0]</code> the <em>driving</em> baseline. Three tests read it as "the transit trip" and started asserting against a car.',
+   'Reading the CI log instead of re-running it locally', 'fixed'],
+  ['The page claimed timetabled precision it did not have',
+   '<code>schedule.available()</code> answers "is there an index file" — but an index is a board period, not a permanent fact. Planning a trip for 7 November returned <code>scheduleAvailable: true</code> with every wait source "modelled". <code>covers(date)</code> is the date-aware question and <code>plan()</code> asks that one instead.',
+   'Applying a bug class found in a sibling project', 'fixed'],
+  ['A duplicate parallel edge was legal',
+   'A station listed in two chains of the same line got a second identical edge — harmless to Dijkstra, and it means the map draws over itself and every scan does the work twice. There were none; there is a test now. Spadina and St George really are one stop apart on both lines, so that stays legal.',
+   'An audit pass, not a symptom', 'fixed']
+];
+
+var GAPS = [
+  '<strong>The ride time between stops is modelled everywhere.</strong> GTFS has real ones, but this graph is a hand-built simplification whose edges skip stops, so a scheduled hop would not describe the same journey. Fixing it properly means rebuilding <code>network/</code> from GTFS rather than patching times onto it.',
+  '<strong>The subway has no live data at all</strong> — only a timetable. The TTC’s GTFS-realtime feed is surface routes only; no subway route id appears in it. So a delayed train shows as its scheduled time. That is the one place the app can be confidently wrong, and it is why the wait source is on every leg.',
+  '<strong>Regional agencies are modelled.</strong> YRT, MiWay and GO keep assumed headways. Metrolinx’s API would cover GO and needs a key, which this project does not use.',
+  '<strong>The graph is hand-built</strong> — nodes sit near real stops rather than on them, and the eastern Line 2 stations are missing. Rebuilding from <code>stops.txt</code> and <code>shapes.txt</code> would fix the positions, the missing stations and the ride times at once.'
+];
+
+var UNMATCHED = [
+  ['kingrow_coxwell',   '504 King', 2106],
+  ['kingrow_dufferin',  '504 King', 1137],
+  ['kingrow_ossington', '504 King',  947]
+];
+
+/* ------------------------------------------------------------- helpers */
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+function el(id) { return document.getElementById(id); }
+function covered(m) { return m.stmts - m.missed; }
+function coverage(m) { return Math.round(100 * covered(m) / m.stmts); }
+function sum(list, field) {
+  return list.reduce(function (n, item) { return n + field(item); }, 0);
+}
+
+var STMTS = sum(MODULES, function (m) { return m.stmts; });
+var COVERED = sum(MODULES, covered);
+var LINES = sum(MODULES, function (m) { return m.lines; });
+var TEST_COUNT = sum(TESTS, function (t) { return t.n; });
+
+/* ---------------------------------------------------------------- tiles */
+
+function drawTiles() {
+  var tiles = [
+    ['Tests', TEST_COUNT.toLocaleString(),
+     TESTS.length + ' files, ' + TEST_LINES.toLocaleString() + ' lines'],
+    ['Coverage', Math.round(100 * COVERED / STMTS) + '%',
+     COVERED.toLocaleString() + ' of ' + STMTS.toLocaleString() + ' statements'],
+    ['Stops in the graph', GRAPH.nodes.toLocaleString(),
+     GRAPH.edges + ' edges, ' + GRAPH.lines + ' lines'],
+    ['Endpoints', ROUTE_COUNT, 'Flask, loopback, no API key'],
+    ['Timetable index', INDEX.dates + ' dates',
+     INDEX.stops + ' stops matched']
+  ];
+  el('tiles').innerHTML = tiles.map(function (t) {
+    return '<div class="tile"><span class="k">' + esc(t[0]) +
+      '</span><strong class="v">' + esc(t[1]) + '</strong>' +
+      '<span class="n">' + esc(t[2]) + '</span></div>';
+  }).join('');
+
+  el('tilesNote').textContent =
+    'Coverage is ' + Math.round(100 * COVERED / STMTS) + '%, and the ' +
+    (STMTS - COVERED) + ' uncovered statements are almost all in one place: ' +
+    'the network. The two-step fetch (urllib, then curl), the background ' +
+    'refresher thread and the if-name-is-main block that starts the server ' +
+    'are what the suite deliberately never executes — every realtime test ' +
+    'runs against a recorded feed instead, because a test that needs the ' +
+    'network fails when the network is having a bad day, and a test that ' +
+    'asserts against live data cannot assert anything specific.';
+}
+
+/* --------------------------------------------------------------- charts */
+
+function drawBars(id, rows, label, value, size, peak) {
+  el(id).innerHTML = rows.map(function (row) {
+    var width = (size(row) / peak * 100).toFixed(1);
+    return '<div class="bar" title="' + esc(label(row) + ' — ' + value(row)) +
+      '"><span class="lab">' + esc(label(row)) + '</span>' +
+      '<span class="rail"><span class="fill" style="width:' + width +
+      '%"></span></span>' +
+      '<span class="val">' + esc(value(row)) + '</span></div>';
+  }).join('');
+}
+
+/* Sorted here rather than relied on in the array, so the caption's "largest
+ * first" stays true however the array is edited. */
+function byStatements() {
+  return MODULES.slice().sort(function (a, b) { return b.stmts - a.stmts; });
+}
+
+function drawModules() {
+  var rows = byStatements();
+  var peak = rows[0].stmts;
+  el('moduleSub').textContent =
+    'By executable statements, largest first. One measure, so one colour and ' +
+    'no legend — the heading names it, and every bar is labelled directly. ' +
+    'The widest is ' + rows[0].name + ' at ' + rows[0].stmts + ', which is ' +
+    'the live feed: deriving a headway from vehicle positions is most of ' +
+    'this project’s difficulty. Nothing imports Flask except app.py, and ' +
+    'nothing knows about Leaflet except static/js/app.js.';
+  drawBars('moduleBars', rows,
+           function (m) { return m.name; },
+           function (m) { return m.stmts + ' · ' + coverage(m) + '%'; },
+           function (m) { return m.stmts; }, peak);
+}
+
+function drawTests() {
+  var peak = Math.max.apply(null, TESTS.map(function (t) { return t.n; }));
+  var most = TESTS.reduce(function (a, b) { return b.n > a.n ? b : a; });
+  el('testSub').textContent =
+    'The heaviest file is ' + most.file + ' at ' + most.n + ' — ' + most.of +
+    '. There are ' + TEST_LINES.toLocaleString() + ' lines of test against ' +
+    LINES.toLocaleString() + ' of source, and none of them touch the ' +
+    'network.';
+  drawBars('testBars', TESTS,
+           function (t) { return t.file.replace('test_', '').replace('.py', ''); },
+           function (t) { return String(t.n); },
+           function (t) { return t.n; }, peak);
+}
+
+function drawGraph() {
+  el('graphSub').textContent =
+    GRAPH.nodes + ' stops and ' + GRAPH.edges + ' edges across ' +
+    GRAPH.lines + ' lines, built in dependency order when the app starts: ' +
+    'graph primitives, then the two subway lines, then the streetcar grid ' +
+    'and its transfers, then the regional networks and the bus routes. By ' +
+    'stops per mode:';
+  var peak = MODES[0].nodes;
+  drawBars('graphBars', MODES,
+           function (m) { return m.mode; },
+           /* Kept short deliberately: the value column is 92px, and
+            * "388 · 7 min wait" wrapped onto a second line in every row. */
+           function (m) { return m.nodes + ' · ' + m.wait + ' min'; },
+           function (m) { return m.nodes; }, peak);
+  el('graphNote').textContent =
+    'The wait shown is the fallback from WAIT_BY_MODE, used when neither the ' +
+    'timetable nor the live feed can answer. That table used to have its own ' +
+    'fallback written out as a bare 6 at the call site, where it looked like ' +
+    'a considered figure for streetcars rather than what it was: a shrug for ' +
+    'a mode nobody had measured. It is DEFAULT_WAIT_MIN = ' + DEFAULT_WAIT +
+    ' now, next to the table, and a test asserts every mode in the graph has ' +
+    'a real entry — so reaching the default means somebody forgot one.';
+}
+
+/* --------------------------------------------------------------- tables */
+
+function drawTable() {
+  /* Same order as the chart, so the two views of one dataset agree. */
+  var rows = byStatements().map(function (m) {
+    return '<tr><td class="mono">' + esc(m.name) + '</td>' +
+      '<td class="num">' + m.lines + '</td>' +
+      '<td class="num">' + m.stmts + '</td>' +
+      '<td class="num">' + coverage(m) + '%</td>' +
+      '<td>' + esc(m.does) + '</td></tr>';
+  }).join('');
+  var omitted = OMITTED.map(function (o) {
+    return '<tr><td class="mono">' + esc(o.name) + '</td>' +
+      '<td class="num">' + o.lines + '</td>' +
+      '<td class="num">&mdash;</td><td class="num">omitted</td>' +
+      '<td>' + esc(o.why) + '</td></tr>';
+  }).join('');
+  el('tableBody').innerHTML = rows + omitted +
+    '<tr class="total"><td>Total, excluding the build tools</td>' +
+    '<td class="num">' + LINES.toLocaleString() + '</td>' +
+    '<td class="num">' + STMTS.toLocaleString() + '</td>' +
+    '<td class="num">' + Math.round(100 * COVERED / STMTS) + '%</td>' +
+    '<td>&mdash;</td></tr>';
+}
+
+/* SOURCES, BUGS and GAPS are authored in this file and carry intentional
+ * markup, so they are written through rather than escaped. No value in any of
+ * them comes from a feed, a request or a person. */
+function drawSources() {
+  var flags = { good: ['good', '✓', 'measured'], warn: ['warn', '⚠', 'assumed'] };
+  el('sourceBody').innerHTML = SOURCES.map(function (s) {
+    var f = flags[s[3]];
+    return '<tr><td><code>' + esc(s[0]) + '</code></td><td>' + s[1] +
+      '</td><td>' + esc(s[2]) + '</td>' +
+      '<td class="num"><span class="flag ' + f[0] + '"><span class="g">' +
+      f[1] + '</span>' + esc(f[2]) + '</span></td></tr>';
+  }).join('');
+  el('sourceNote').textContent =
+    'Live service alerts are applied on top of all three: a closed line is ' +
+    'dropped from the graph so trips route around it, and a detour costs ' +
+    'time. Both POST bodies accept "live": false to force the fixed model, ' +
+    'which is what the tests use — and what you want when comparing two ' +
+    'trips without the ground moving between them.';
+}
+
+function drawBugs() {
+  el('bugBody').innerHTML = BUGS.map(function (b) {
+    return '<tr><td><b>' + b[0] + '</b><br>' + b[1] + '</td>' +
+      '<td>' + b[2] + '</td>' +
+      '<td class="num"><span class="flag good"><span class="g">✓</span>' +
+      esc(b[3]) + '</span></td></tr>';
+  }).join('');
+}
+
+function drawGaps() {
+  el('gapList').innerHTML = GAPS.map(function (text) {
+    return '<li><span class="step">&rarr;</span><span>' + text +
+      '</span></li>';
+  }).join('');
+  el('unmatchedBody').innerHTML = UNMATCHED.map(function (u) {
+    return '<tr><td class="mono">' + esc(u[0]) + '</td>' +
+      '<td>' + esc(u[1]) + '</td>' +
+      '<td class="num">' + u[2] + ' m</td></tr>';
+  }).join('') +
+    '<tr class="total"><td colspan="2">and ' + (INDEX.unmatched -
+      UNMATCHED.length) + ' more, all on surface routes</td>' +
+    '<td class="num">&gt; ' + INDEX.maxMatchMetres + ' m</td></tr>';
+}
+
+function drawIndex() {
+  el('indexKv').innerHTML = [
+    ['built', INDEX.builtAt + ' — from a ' + INDEX.archiveMegabytes +
+     ' MB archive, into about ' + INDEX.megabytes.toFixed(1) + ' MB'],
+    ['covers', INDEX.covers[0] + ' to ' + INDEX.covers[1] + ' (' +
+     INDEX.dates + ' service dates)'],
+    ['matched', INDEX.stops + ' stops, each within ' + INDEX.maxMatchMetres +
+     ' m of its graph node'],
+    ['unmatched', INDEX.unmatched + ' node-line pairs, which fall back to a ' +
+     'modelled wait']
+  ].map(function (pair) {
+    return '<dt>' + esc(pair[0]) + '</dt><dd>' + esc(pair[1]) + '</dd>';
+  }).join('');
+
+  el('indexNote').textContent =
+    'It is not committed, and that is the interesting part. It is derived ' +
+    'data that expires with the board period, so committing it would ship ' +
+    'something guaranteed to go wrong quietly. The cost is that CI has never ' +
+    'had one — which is how six runs went red while every local machine ' +
+    'stayed green, and why the workflow now records what the runner does not ' +
+    'have.';
+}
+
+function drawSamples() {
+  el('tripSample').textContent = [
+    "POST /api/trips  {\"olat\":43.6453,\"olon\":-79.3806,",
+    "                  \"dlat\":43.7805,\"dlon\":-79.4151,\"departAt\":\"17:20\"}",
+    "",
+    "OPTION 1   17:20 -> 18:00   41 min, direct",
+    "  or leave on the 17:24, 17:27, 17:29",
+    "",
+    "  17:20-17:22   wait for Line 1, board 17:22   (timetabled)",
+    "  17:22-18:00   ride Line 1 to Finch (16 stops)",
+    "  18:00-18:00   walk to destination"
+  ].join('\n');
+}
+
+/* -------------------------------------------------------------- controls */
+
+el('themeBtn').addEventListener('click', function () {
+  var set = document.documentElement.getAttribute('data-theme');
+  var dark = set ? set === 'dark'
+    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+
+el('tableBtn').addEventListener('click', function () {
+  var showTable = el('tablePanel').hidden;
+  el('tablePanel').hidden = !showTable;
+  el('modulePanel').hidden = showTable;
+  el('testPanel').hidden = showTable;
+  this.setAttribute('aria-pressed', String(showTable));
+  this.textContent = showTable ? 'Chart view' : 'Table view';
+});
+
+el('footNote').textContent =
+  'Figures measured on 11 September 2026 in the repository with pytest ' +
+  '--cov, wc -l and pytest --collect-only, not estimated — and the module ' +
+  'and test figures are checked against a fresh measurement by ' +
+  'tests/test_published_figures.py, because a page like this goes stale the ' +
+  'moment a test is added. Everything here is read from one data block, so ' +
+  'the tiles, the charts and the table cannot disagree. The app itself is ' +
+  'not hosted anywhere: it runs on 127.0.0.1:5000 on your own machine, and ' +
+  'this page is just the write-up.';
+
+drawTiles();
+drawModules();
+drawTests();
+drawGraph();
+drawTable();
+drawSources();
+drawBugs();
+drawGaps();
+drawIndex();
+drawSamples();
+</script>
+</body>
+</html>

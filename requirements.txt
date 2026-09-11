@@ -8,3 +8,10 @@ gtfs-realtime-bindings>=1.0
 
 # Tests only; the app itself needs nothing but Flask.
 pytest>=7.4
+
+# Also tests only, and less optional than it looks. `coverage` is what
+# tests/test_published_figures.py measures the published figures with, so
+# without it that test errors rather than skips -- and CI installs exactly
+# this file. pytest-cov is what the documented coverage command asks for.
+coverage>=7.0
+pytest-cov>=4.0
