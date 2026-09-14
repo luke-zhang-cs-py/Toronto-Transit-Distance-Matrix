@@ -480,8 +480,12 @@ def _transit_options(origin, destination, depart_at, conditions, alternatives,
                            else "Transit")
         option["isBaseline"] = False
         found.append(option)
-        if option["via"] is None:
-            break                              # a pure walk: no line to ban
+        # `via` cannot be None here. It is _signature_line over the same
+        # transit legs that produced `lines`, so the check above -- which
+        # breaks on an option with no lines -- already guarantees there is a
+        # line to ban. A second `if option["via"] is None: break` used to
+        # sit here; coverage showed it had never run, and the two being
+        # derived from one list of legs says it never can.
         banned.add(option["via"])
     return found
 

@@ -9,3 +9,13 @@ omit =
     tools_build_schedule.py
     # Same: streams the GTFS archive and writes network/bus_routes.json.
     tools_build_buses.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    # The script entry point: it starts the refresher, prints a summary and
+    # calls app.run(). Importing the module under test must not do any of
+    # that, so the block cannot execute in the suite. Same exclusion the
+    # other Flask projects in this family use.
+    if __name__ == .__main__.:
+    raise NotImplementedError

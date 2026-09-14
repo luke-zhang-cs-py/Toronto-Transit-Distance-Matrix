@@ -56,11 +56,16 @@ def compute_times(olat, olon, with_paths=False, conditions=None):
     heapq.heapify(pq)
     while pq:
         t, u = heapq.heappop(pq)
+        # `visited` is the whole staleness check. A node is pushed again
+        # whenever a cheaper way in is found, so the superseded entry stays
+        # in the heap -- but the cheaper one pops first, marks the node, and
+        # every later entry for it hits the line above. A second `if t >
+        # time[u]: continue` used to sit below and could not fire: coverage
+        # showed it had never run once in 176 tests, and the reasoning says
+        # it never can. Do not add it back.
         if u in visited:
             continue
         visited.add(u)
-        if t > time[u]:
-            continue
         for edge in adj[u]:
             # A closed line is absent, not expensive: skipping the edge lets
             # the search route around it, which is what somebody standing on
