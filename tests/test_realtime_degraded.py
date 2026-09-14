@@ -256,14 +256,27 @@ def test_a_corrupt_body_is_not_a_crash(monkeypatch):
 # ------------------------------------------------------- reading the feed
 
 
-def test_no_feed_means_no_headways_rather_than_zero():
-    """Zero headways would read as "every line runs constantly"."""
+def test_no_feed_means_no_headways_rather_than_zero(monkeypatch):
+    """Zero headways would read as "every line runs constantly".
+
+    `feed=None` is the *default*, and it means "fetch the live one" -- so
+    this test used to make a real HTTP request to the TTC and assert on
+    whatever came back. It passed here, where the fetch fails, and failed in
+    CI, where it does not. The absent feed has to be produced by making the
+    fetch fail, which is what `_feed` returning None means.
+    """
+    monkeypatch.setattr(realtime, "_feed", lambda kind: None)
+    assert realtime.observed_headways() == {}
     assert realtime.observed_headways(feed=None) == {}
 
 
-def test_no_feed_means_no_disruptions_claimed():
-    out = realtime.disruptions(feed=None)
-    assert out == {"closed": set(), "detour": set(), "notes": []}
+def test_no_feed_means_no_disruptions_claimed(monkeypatch):
+    """Same correction. An empty result is a claim about the world -- "no
+    disruptions" -- and it must not be reachable by failing to look."""
+    monkeypatch.setattr(realtime, "_feed", lambda kind: None)
+    empty = {"closed": set(), "detour": set(), "notes": []}
+    assert realtime.disruptions() == empty
+    assert realtime.disruptions(feed=None) == empty
 
 
 def test_entities_that_are_not_trip_updates_are_skipped():
