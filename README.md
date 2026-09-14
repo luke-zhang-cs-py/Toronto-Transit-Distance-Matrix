@@ -181,7 +181,7 @@ pytest -q
 pytest -q --cov=. --cov-report=term-missing
 ```
 
-218 tests, 100% of 1,007 statements. That figure is itself checked:
+220 tests, 100% of 1,007 statements. That figure is itself checked:
 `tests/test_published_figures.py` measures the repository and compares it with
 what the README and the published overview claim, because both had gone stale
 — the project layout above said 112 tests and 89% while the suite had moved

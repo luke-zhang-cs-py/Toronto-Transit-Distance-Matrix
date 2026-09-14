@@ -399,10 +399,10 @@ var TESTS = [
   { file: 'test_schedule.py',          n: 19, of: 'the index, the board period, and life without one' },
   { file: 'test_degraded.py',          n: 12, of: 'what it does when the data it wants is not there' },
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' },
-  { file: 'test_published_figures.py', n:  9, of: 'the numbers on this page, against a fresh measurement' }
+  { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' }
 ];
 
-var TEST_LINES = 2558;
+var TEST_LINES = 2721;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so
@@ -746,9 +746,9 @@ el('footNote').textContent =
   'this page is just the write-up.';
 
 el('footNote').textContent += ' The statement counts were produced by ' +
-  MEASURED_WITH + ': coverage counts statements differently between versions, so the
-  figure is a property of the code and the interpreter together, and the check that
-  guards it compares only like with like.';
+  MEASURED_WITH + ': coverage counts statements differently between ' +
+  'versions, so the figure is a property of the code and the interpreter ' +
+  'together, and the check that guards it compares only like with like.';
 
 drawTiles();
 drawModules();
