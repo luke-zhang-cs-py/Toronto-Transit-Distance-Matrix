@@ -52,7 +52,7 @@ import time
 import urllib.error
 import urllib.request
 
-from network import WAIT_BY_MODE, DEFAULT_WAIT_MIN
+from network import WAIT_BY_MODE, DEFAULT_WAIT_MIN, mode_of_line
 
 log = logging.getLogger(__name__)
 
@@ -438,21 +438,31 @@ class Conditions:
     def impact_on(self, line):
         return impact_on(line, self.disrupted)
 
-    def boarding_wait(self, node_lines, mode):
+    def boarding_wait(self, node_lines, node_mode):
         """Wait at a stop, given the lines that serve it.
 
         You board whatever arrives first, so the wait at an interchange is the
         smallest of its lines' waits, not the average. With no live figure for
-        any of them this is the modelled wait for the mode, unchanged.
+        any of them this is the modelled wait for the mode -- but the mode has
+        to be the *line's*, not the node's.
+
+        A node's own `mode` is whichever agency happened to build it first
+        (Union is a subway node because subway.py runs before regional.py),
+        and every other line that also calls there -- GO, MiWay, YRT -- is
+        stuck wearing that tag. A GO train boarded at Union then looked up a
+        subway wait (~4 min) instead of a GO wait (~20 min). `mode_of_line`
+        gives each line its own recorded mode; `node_mode` is only the
+        fallback for a line that was never recorded (there should not be
+        one, but a modelled wait is still owed).
         """
-        fallback = WAIT_BY_MODE.get(mode, DEFAULT_WAIT_MIN)
-        best, measured = fallback, False
+        best, measured = WAIT_BY_MODE.get(node_mode, DEFAULT_WAIT_MIN), False
         for line in node_lines:
             if self.impact_on(line) is None:
                 continue                      # not running: cannot board it
-            value, is_live = self.wait_for(line, mode)
-            if is_live and value < best:
-                best, measured = value, True
+            line_mode = mode_of_line(line) or node_mode
+            value, is_live = self.wait_for(line, line_mode)
+            if value < best:
+                best, measured = value, is_live
         return best, measured
 
 

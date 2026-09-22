@@ -61,7 +61,7 @@ def load(path=DATA):
             add_node(stop["id"], stop["name"], stop["lat"], stop["lon"], "bus")
             added += 1
         for (before, after), minutes in zip(zip(stops, stops[1:]), hops):
-            add_edge(before["id"], after["id"], minutes, route["line"])
+            add_edge(before["id"], after["id"], minutes, route["line"], "bus")
 
     for node_a, node_b, minutes in data.get("transfers", []):
         add_edge(node_a, node_b, minutes, "Transfer")

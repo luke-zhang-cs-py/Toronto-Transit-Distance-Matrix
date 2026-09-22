@@ -67,32 +67,32 @@ def _build_yrt():
     chain(YRT_ORANGE, 14, 'yrt', 'YRT Viva Orange (Yonge St)')
 
     add_node('thornhill', 'Thornhill (Yonge & Centre)', 43.8156, -79.4256, 'yrt')
-    add_edge('steelesyonge', 'thornhill', 6, 'YRT local')
-    add_edge('thornhill', 'richmondhillcentre', 10, 'YRT local')
-    add_edge('richmondhillyonge', 'richmondhillcentre', 9, 'YRT local')
+    add_edge('steelesyonge', 'thornhill', 6, 'YRT local', 'yrt')
+    add_edge('thornhill', 'richmondhillcentre', 10, 'YRT local', 'yrt')
+    add_edge('richmondhillyonge', 'richmondhillcentre', 9, 'YRT local', 'yrt')
 
     add_node('cornell', 'Cornell (Markham east)', 43.8752, -79.2519, 'yrt')
-    add_edge('markhamcentre', 'cornell', 14, 'YRT Viva Blue (Hwy 7 east)')
+    add_edge('markhamcentre', 'cornell', 14, 'YRT Viva Blue (Hwy 7 east)', 'yrt')
 
 
 def _build_miway():
     add_node('mississaugacc', 'Mississauga City Centre (Square One)', 43.5932, -79.6416, 'go')
-    add_edge('union', 'mississaugacc', GO_HOP, 'GO Transit (Milton/Lakeshore W + bus)')
-    add_edge('kipling', 'mississaugacc', MIWAY_HOP, 'MiWay Express')
+    add_edge('union', 'mississaugacc', GO_HOP, 'GO Transit (Milton/Lakeshore W + bus)', 'go')
+    add_edge('kipling', 'mississaugacc', MIWAY_HOP, 'MiWay Express', 'miway')
 
     for nid, name, lat, lon in MIWAY_HUBS:
         add_node(nid, name, lat, lon, 'miway')
 
-    add_edge('meadowvaletc', 'mississaugacc', 14, 'MiWay Hurontario corridor')
-    add_edge('mississaugacc', 'cooksvillego', 8, 'MiWay Hurontario corridor')
-    add_edge('cooksvillego', 'dixieoutletmall', 10, 'MiWay Hurontario corridor')
-    add_edge('dixieoutletmall', 'portcreditgo', 12, 'MiWay Hurontario corridor')
-    add_edge('erinmillstc', 'mississaugacc', 12, 'MiWay Dundas corridor')
-    add_edge('streetsvillego', 'erinmillstc', 10, 'MiWay west end')
-    add_edge('streetsvillego', 'meadowvaletc', 9, 'MiWay west end')
-    add_edge('clarksongo', 'portcreditgo', 8, 'MiWay Lakeshore corridor')
-    add_edge('malton', 'airportcorporate', 10, 'MiWay Airport corridor')
-    add_edge('airportcorporate', 'mississaugacc', 14, 'MiWay Airport corridor')
+    add_edge('meadowvaletc', 'mississaugacc', 14, 'MiWay Hurontario corridor', 'miway')
+    add_edge('mississaugacc', 'cooksvillego', 8, 'MiWay Hurontario corridor', 'miway')
+    add_edge('cooksvillego', 'dixieoutletmall', 10, 'MiWay Hurontario corridor', 'miway')
+    add_edge('dixieoutletmall', 'portcreditgo', 12, 'MiWay Hurontario corridor', 'miway')
+    add_edge('erinmillstc', 'mississaugacc', 12, 'MiWay Dundas corridor', 'miway')
+    add_edge('streetsvillego', 'erinmillstc', 10, 'MiWay west end', 'miway')
+    add_edge('streetsvillego', 'meadowvaletc', 9, 'MiWay west end', 'miway')
+    add_edge('clarksongo', 'portcreditgo', 8, 'MiWay Lakeshore corridor', 'miway')
+    add_edge('malton', 'airportcorporate', 10, 'MiWay Airport corridor', 'miway')
+    add_edge('airportcorporate', 'mississaugacc', 14, 'MiWay Airport corridor', 'miway')
 
 
 def _build_highways():
@@ -100,25 +100,25 @@ def _build_highways():
         mode = 'yrt' if nid.startswith(('concord', 'hwy400', 'hwy404', 'centennial', 'hwy407')) else 'miway'
         add_node(nid, name, lat, lon, mode)
 
-    add_edge('renforth', 'airportcorporate', 8, 'MiWay Hwy 401 corridor')
-    add_edge('renforth', 'kipling', 12, 'MiWay Hwy 401 corridor')
-    add_edge('hwy403', 'erinmillstc', 7, 'MiWay Hwy 403 corridor')
-    add_edge('hwy403', 'mississaugacc', 10, 'MiWay Hwy 403 corridor')
-    add_edge('qewcawthra', 'portcreditgo', 6, 'MiWay QEW corridor')
-    add_edge('qewcawthra', 'clarksongo', 7, 'MiWay QEW corridor')
-    add_edge('qewcawthra', 'dixieoutletmall', 8, 'MiWay QEW corridor')
+    add_edge('renforth', 'airportcorporate', 8, 'MiWay Hwy 401 corridor', 'miway')
+    add_edge('renforth', 'kipling', 12, 'MiWay Hwy 401 corridor', 'miway')
+    add_edge('hwy403', 'erinmillstc', 7, 'MiWay Hwy 403 corridor', 'miway')
+    add_edge('hwy403', 'mississaugacc', 10, 'MiWay Hwy 403 corridor', 'miway')
+    add_edge('qewcawthra', 'portcreditgo', 6, 'MiWay QEW corridor', 'miway')
+    add_edge('qewcawthra', 'clarksongo', 7, 'MiWay QEW corridor', 'miway')
+    add_edge('qewcawthra', 'dixieoutletmall', 8, 'MiWay QEW corridor', 'miway')
 
-    add_edge('concordgo', 'vaughanmc', 9, 'YRT Hwy 400 corridor')
-    add_edge('concordgo', 'vaughanmills', 6, 'YRT Hwy 400 corridor')
-    add_edge('hwy400rutherford', 'vaughanmills', 5, 'YRT Hwy 400 corridor')
-    add_edge('hwy400rutherford', 'concordgo', 7, 'YRT Hwy 400 corridor')
+    add_edge('concordgo', 'vaughanmc', 9, 'YRT Hwy 400 corridor', 'yrt')
+    add_edge('concordgo', 'vaughanmills', 6, 'YRT Hwy 400 corridor', 'yrt')
+    add_edge('hwy400rutherford', 'vaughanmills', 5, 'YRT Hwy 400 corridor', 'yrt')
+    add_edge('hwy400rutherford', 'concordgo', 7, 'YRT Hwy 400 corridor', 'yrt')
 
-    add_edge('hwy404_16th', 'markhamcentre', 6, 'YRT Hwy 404 corridor')
-    add_edge('hwy404_16th', 'unionville', 8, 'YRT Hwy 404 corridor')
-    add_edge('centennialgo', 'cornell', 7, 'YRT Hwy 7 east corridor')
-    add_edge('centennialgo', 'unionville', 9, 'YRT Hwy 7 east corridor')
-    add_edge('hwy407kennedy', 'centennialgo', 5, 'YRT Hwy 407 corridor')
-    add_edge('hwy407kennedy', 'markhamcentre', 7, 'YRT Hwy 407 corridor')
+    add_edge('hwy404_16th', 'markhamcentre', 6, 'YRT Hwy 404 corridor', 'yrt')
+    add_edge('hwy404_16th', 'unionville', 8, 'YRT Hwy 404 corridor', 'yrt')
+    add_edge('centennialgo', 'cornell', 7, 'YRT Hwy 7 east corridor', 'yrt')
+    add_edge('centennialgo', 'unionville', 9, 'YRT Hwy 7 east corridor', 'yrt')
+    add_edge('hwy407kennedy', 'centennialgo', 5, 'YRT Hwy 407 corridor', 'yrt')
+    add_edge('hwy407kennedy', 'markhamcentre', 7, 'YRT Hwy 407 corridor', 'yrt')
 
 
 def build():

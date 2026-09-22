@@ -14,7 +14,7 @@ app just imports `nodes` and `adj` from here.
 """
 
 from .graph import (nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN,
-                    lines_at)
+                    lines_at, mode_of_line)
 from . import subway, streetcars, regional, buses
 
 subway.build()
@@ -26,4 +26,4 @@ regional.build()
 buses.load()
 
 __all__ = ['nodes', 'adj', 'WALK_KMH', 'WAIT_BY_MODE', 'DEFAULT_WAIT_MIN',
-           'lines_at']
+           'lines_at', 'mode_of_line']

@@ -49,7 +49,15 @@ def fetch(url=ARCHIVE_URL, dest=None, timeout=400):
     interception is what fails. curl verifies differently and succeeds. On a
     machine without that proxy the first branch is the one that runs. Same
     reasoning as realtime._fetch.
+
+    `dest` has no real default -- there is nowhere sensible to write an
+    82 MB archive without being told -- so it stays keyword-optional only to
+    let `url` be positional, and is checked here rather than left to fail as
+    a bare `open(None, "wb")` TypeError two lines down, which says nothing
+    about what was actually missing.
     """
+    if dest is None:
+        raise ValueError("fetch() requires dest: a path to write the archive to")
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response, \
                 open(dest, "wb") as handle:

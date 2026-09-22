@@ -367,16 +367,16 @@ footer a { color: inherit; }
  * stale quietly -- `python tools/refresh_figures.py` rewrites them. */
 
 var MODULES = [
-  { name: 'realtime.py',           lines: 559, stmts: 237, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
-  { name: 'itinerary.py',          lines: 570, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'realtime.py',           lines: 569, stmts: 237, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
+  { name: 'itinerary.py',          lines: 576, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
   { name: 'schedule.py',           lines: 268, stmts: 116, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                lines: 266, stmts: 109, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
   { name: 'routing.py',            lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
   { name: 'network/regional.py',   lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
-  { name: 'gtfs.py',               lines: 115, stmts:  39, missed:  0, does: 'reads the GTFS archive; shared by both build tools' },
+  { name: 'gtfs.py',               lines: 123, stmts:  41, missed:  1, does: 'reads the GTFS archive; shared by both build tools' },
   { name: 'network/buses.py',      lines:  72, stmts:  32, missed:  0, does: '28 bus routes, loaded from a built JSON file' },
+  { name: 'network/graph.py',      lines: 101, stmts:  32, missed:  0, does: 'add_node / add_edge / chain, and nothing else' },
   { name: 'network/streetcars.py', lines:  96, stmts:  29, missed:  0, does: 'the downtown grid, and its subway transfers' },
-  { name: 'network/graph.py',      lines:  77, stmts:  27, missed:  0, does: 'add_node / add_edge / chain, and nothing else' },
   { name: 'geo.py',                lines:  48, stmts:  13, missed:  0, does: 'haversine and the walk time; both tools had a copy' },
   { name: 'network/subway.py',     lines: 102, stmts:  13, missed:  0, does: 'Line 1 and Line 2 with their extensions' },
   { name: 'network/__init__.py',   lines:  29, stmts:   7, missed:  0, does: 'builds the graph in dependency order' }

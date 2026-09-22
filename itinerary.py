@@ -54,7 +54,7 @@ import itertools
 
 import realtime
 import schedule
-from network import WALK_KMH, adj, nodes
+from network import WALK_KMH, adj, mode_of_line, nodes
 from routing import haversine_km, path_km, walk_minutes
 
 # How far somebody will walk to reach the network, and to leave it.
@@ -143,7 +143,13 @@ def _wait_for(node_id, line, moment, conditions):
     if timetabled is not None:
         return timetabled, "timetable"
 
-    mode = nodes[node_id]["mode"]
+    # The mode has to be the *line's*, not the boarding node's: `nodes[node_id]
+    # ["mode"]` is whichever agency's module created this node first (e.g.
+    # Union is a subway node), and a GO or MiWay or YRT line boarded at a
+    # shared node is not subway just because the node is. mode_of_line looks
+    # up the mode the line was actually built with; the node's mode is only
+    # the fallback for a line that was somehow never recorded.
+    mode = mode_of_line(line) or nodes[node_id]["mode"]
     minutes, measured = conditions.wait_for(line, mode)
     return minutes, "headway" if measured else "modelled"
 
