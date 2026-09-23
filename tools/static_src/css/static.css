@@ -1,0 +1,31 @@
+/* ---------------------------------------------------------------------------
+   static.css — the one thing the browser-only build adds to the page
+   ---------------------------------------------------------------------------
+   Loaded after style.css, and it adds rather than overrides: the two builds
+   should look like the same program, because they are.
+
+   The banner is deliberately not decorative. A page that computes travel
+   times from a model and a page that computes them from a live feed look
+   identical, and the reader cannot tell which one they have unless it is
+   written down.
+   --------------------------------------------------------------------------- */
+
+.staticBanner {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--mid);
+  border-radius: 7px;
+  background: rgba(224, 192, 74, .05);
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-width: 820px;
+}
+
+.staticBanner b { color: var(--ink); font-weight: 600; }
+.staticBanner a { color: var(--accent); text-decoration: none; }
+.staticBanner a:hover { text-decoration: underline; }
+
+#staticNote .hint a { color: var(--accent); text-decoration: none; }
+#staticNote .hint a:hover { text-decoration: underline; }
