@@ -8,7 +8,7 @@ headways. This answers "what time does the next one go", which is a
 different question and the one you need if you are planning to leave at
 17:20 rather than right now.
 
-The data is TTC's static GTFS, reduced by tools_build_schedule.py into
+The data is TTC's static GTFS, reduced by tools/build_schedule.py into
 schedule_index.json: for each graph node and line, the departure times on
 each service day. Built rather than parsed live because stop_times.txt is
 207 MB and the reduction is 0.6.
@@ -43,8 +43,12 @@ import threading
 
 log = logging.getLogger(__name__)
 
-INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "schedule_index.json")
+# Two dirnames, not one: this module lives in feeds/, and the index
+# tools/build_schedule.py writes sits at the project root. Getting this wrong
+# does not raise -- every scheduled departure simply stops being found, the
+# suite skips instead of failing, and the app quietly falls back to headways.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX_PATH = os.path.join(_ROOT, "schedule_index.json")
 
 SECONDS_PER_DAY = 86400
 
@@ -62,7 +66,7 @@ def load(path=INDEX_PATH):
     """The departure index, read once. Returns None if it has not been built.
 
     Absent rather than fatal: the project works without it, on headways and
-    modelled waits, and `python tools_build_schedule.py` is what turns the
+    modelled waits, and `python tools/build_schedule.py` is what turns the
     timetable on.
     """
     global _index, _loaded
@@ -71,7 +75,7 @@ def load(path=INDEX_PATH):
             return _index
         _loaded = True
         if not os.path.exists(path):
-            log.info("no schedule index at %s; run tools_build_schedule.py "
+            log.info("no schedule index at %s; run tools/build_schedule.py "
                      "for timetabled departures", path)
             _index = None
             return None

@@ -3,8 +3,8 @@ gtfs.py
 --------
 Reading TTC's static GTFS archive, in one place.
 
-Two build tools consume that archive -- tools_build_schedule.py for the
-timetable index, tools_build_buses.py for the bus routes -- and both had
+Two build tools consume that archive -- tools/build_schedule.py for the
+timetable index, tools/build_buses.py for the bus routes -- and both had
 their own copy of the same three helpers. `rows` and the distance function
 were byte-identical; `to_seconds` was the same logic with different variable
 names, and the copy in the bus builder had lost the comment explaining why

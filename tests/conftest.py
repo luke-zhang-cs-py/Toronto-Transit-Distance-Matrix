@@ -55,7 +55,7 @@ def no_live_feed_in_tests(monkeypatch):
     None. Nothing under test is replaced, and a test that wants a specific
     fetch result still patches `_fetch` itself.
     """
-    import realtime
+    from feeds import realtime
     realtime.reset_cache()
     monkeypatch.setattr(realtime, "FEEDS",
                         {kind: "http://feed.invalid/%s" % kind

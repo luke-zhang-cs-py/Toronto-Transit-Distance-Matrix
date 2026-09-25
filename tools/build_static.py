@@ -100,7 +100,7 @@ def replace_once(text, old, new, what):
 # ---------------------------------------------------------------------------
 def collect_graph():
     """Everything the ported search reads, and the checks that it is enough."""
-    import realtime
+    from feeds import realtime
     from network import nodes, adj, WALK_KMH, WAIT_BY_MODE, DEFAULT_WAIT_MIN
     from network import lines_at, mode_of_line
     from network.graph import LINE_MODES, TRANSFER

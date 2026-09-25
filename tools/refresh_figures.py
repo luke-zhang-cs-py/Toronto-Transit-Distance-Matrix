@@ -180,6 +180,35 @@ def fix_test_lines(page, changes):
                   "var TEST_LINES = %d;" % total, page)
 
 
+def fix_omitted(page, changes):
+    """Line counts for the modules coverage is told to skip.
+
+    measure() never sees them -- that is what being omitted means -- so
+    nothing else here would notice when they change. Both went stale the
+    moment the two build tools moved into tools/, which is exactly the kind
+    of quiet drift the rest of this script exists to stop.
+    """
+    block = re.search(r"var OMITTED = \[\n(.*?)\n\];", page, re.S)
+    if not block:
+        return page
+
+    def one(match):
+        name, gap, lines = match.group(1), match.group(2), match.group(3)
+        path = os.path.join(ROOT, name)
+        if not os.path.exists(path):
+            raise SystemExit(
+                "the page lists %s as omitted from coverage and it is not "
+                "there. Fix the name or drop the row." % name)
+        real = len(read(path).splitlines())
+        if int(lines) != real:
+            changes.append("  %-24s %s -> %s lines" % (name, lines, real))
+        return "{ name: '%s',%slines: %d," % (name, gap, real)
+
+    body = re.sub(r"\{ name: '([\w./]+)',(\s*)lines:\s*(\d+),", one,
+                  block.group(1))
+    return page.replace(block.group(1), body, 1)
+
+
 def fix_readme(measured, counts, changes):
     """The one sentence of figures in the README, if it has one."""
     if not os.path.exists(README):
@@ -200,7 +229,9 @@ def fix_readme(measured, counts, changes):
 
 def rewrite(page, measured, counts, changes):
     return fix_measured_with(fix_test_lines(
-        fix_tests(fix_modules(page, measured, changes), counts, changes),
+        fix_omitted(
+            fix_tests(fix_modules(page, measured, changes), counts, changes),
+            changes),
         changes), changes)
 
 

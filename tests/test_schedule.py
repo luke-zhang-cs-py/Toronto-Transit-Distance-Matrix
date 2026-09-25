@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-import schedule
+from feeds import schedule
 
 
 @pytest.fixture(autouse=True)
@@ -27,7 +27,7 @@ def a_scheduled_stop():
     """A node and line the index actually holds, or skip."""
     index = schedule.load()
     if not index:
-        pytest.skip("no schedule index; run tools_build_schedule.py")
+        pytest.skip("no schedule index; run tools/build_schedule.py")
     for node_id, by_line in index["departures"].items():
         for line in by_line:
             return node_id, line

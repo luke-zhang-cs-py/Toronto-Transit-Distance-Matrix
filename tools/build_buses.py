@@ -1,5 +1,5 @@
 """
-tools_build_buses.py
+tools/build_buses.py
 ---------------------
 Generate bus routes for the graph from TTC's static GTFS.
 
@@ -29,7 +29,7 @@ rounding it to a nicer number.
 **Routes are named "<number> <name>"** -- "63 Ossington" -- which is the same
 convention the streetcars use. That is not cosmetic: realtime.route_id_of
 parses the leading number to find the route in the live feed, and
-tools_build_schedule matches it to a GTFS route_short_name. Naming them this
+build_schedule matches it to a GTFS route_short_name. Naming them this
 way means the new routes get live headways, alerts and timetabled departures
 without another line of code.
 
@@ -39,8 +39,8 @@ Output
 
 Usage
 -----
-    python tools_build_buses.py --zip path/to/gtfs.zip
-    python tools_build_buses.py --routes 30 --spacing 900
+    python tools/build_buses.py --zip path/to/gtfs.zip
+    python tools/build_buses.py --routes 30 --spacing 900
 """
 
 import argparse
@@ -51,11 +51,13 @@ import sys
 import zipfile
 from collections import Counter, defaultdict
 
-PROJ = os.path.dirname(os.path.abspath(__file__))
+# Two dirnames: this script lives in tools/, and what has to go on
+# sys.path is the project it imports from, not the folder it sits in.
+PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJ)
 
-from gtfs import rows, to_seconds                 # noqa: E402
-from geo import metres                            # noqa: E402
+from feeds.gtfs import rows, to_seconds                 # noqa: E402
+from trips.geo import metres                            # noqa: E402
 
 OUTPUT = os.path.join(PROJ, "network", "bus_routes.json")
 

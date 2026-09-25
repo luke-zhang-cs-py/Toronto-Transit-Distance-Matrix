@@ -12,8 +12,8 @@ import os
 
 import pytest
 
-import realtime
-import routing
+from feeds import realtime
+from trips import routing
 from network import WAIT_BY_MODE
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")

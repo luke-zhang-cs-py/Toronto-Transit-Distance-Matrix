@@ -13,7 +13,7 @@ import datetime as dt
 
 import pytest
 
-import itinerary
+from trips import itinerary
 from network import nodes
 
 

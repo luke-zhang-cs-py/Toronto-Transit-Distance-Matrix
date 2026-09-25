@@ -23,7 +23,7 @@ had. (Or open [`docs/index.html`](docs/index.html) locally.)
 ```bash
 pip install -r requirements.txt
 python app.py                      # http://127.0.0.1:5000
-python tools_build_schedule.py     # optional: adds timetabled departures
+python tools/build_schedule.py     # optional: adds timetabled departures
 ```
 
 No API key, no billing account. OpenStreetMap tiles in the browser; every
@@ -33,7 +33,7 @@ travel time is computed locally against TTC's own open timetable and live feed.
 
 The live demo above is [`docs/app/`](docs/app/index.html) — the same page with
 the server taken out. The graph is small enough (97 KB) to inline into the page,
-and the reachability search is a port of `routing.py`'s Dijkstra that runs in
+and the reachability search is a port of `trips/routing.py`'s Dijkstra that runs in
 JavaScript. It's generated, not hand-forked:
 
 ```bash
@@ -60,13 +60,31 @@ each one is labelled:
 Live service alerts apply on top — a closed line drops out of the graph, so
 trips route around it.
 
+## Layout
+
+```
+app.py        the Flask entry point, and the only module left in the root
+network/      the graph: subway, streetcars, buses, regional, and the
+              add_node / add_edge primitives they all use
+feeds/        what TTC publishes: the GTFS archive, the departure index
+              built from it, and the live vehicle feed
+trips/        coordinates and a graph in, travel times and itineraries out
+tools/        the two GTFS builders, the browser build, the figure refresh
+```
+
+Data in, graph, routes out — and the arrows only point one way, so `feeds/`
+never imports `trips/`. `feeds/schedule.py` resolves the departure index two
+levels up, because getting that wrong does not raise: the departures simply
+stop being found, the suite skips instead of failing, and the app falls back
+to average headways as though no timetable had ever been built.
+
 ## Tests
 
 ```bash
 pytest -q
 ```
 
-220 tests, 100% of 1,014 statements — and that figure is itself checked, because
+220 tests, 100% of 1,015 statements — and that figure is itself checked, because
 it had already gone stale once. The suite never touches the network: the
 realtime tests run against recorded feeds, one containing a real Line 2 closure.
 

@@ -52,10 +52,10 @@ import datetime as dt
 import heapq
 import itertools
 
-import realtime
-import schedule
+from feeds import realtime
+from feeds import schedule
 from network import WALK_KMH, adj, mode_of_line, nodes
-from routing import haversine_km, path_km, walk_minutes
+from trips.routing import haversine_km, path_km, walk_minutes
 
 # How far somebody will walk to reach the network, and to leave it.
 #

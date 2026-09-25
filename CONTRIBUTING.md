@@ -16,7 +16,7 @@ fetches it at startup and then every 30 seconds on a background thread.
 36 MB static GTFS archive:
 
 ```bash
-python tools_build_schedule.py
+python tools/build_schedule.py
 ```
 
 Without it the app still works — boarding waits fall back to live headways,
@@ -38,7 +38,7 @@ The suite has to pass both ways — 160 with the index, 149 and 11 skipped
 without. If a test needs the timetable, mark it
 `@pytest.mark.skipif(not schedule.available(), ...)` rather than assuming.
 
-`network/bus_routes.json` *is* committed, built by `tools_build_buses.py`.
+`network/bus_routes.json` *is* committed, built by `tools/build_buses.py`.
 Rebuilding it is idempotent; if it is not, that is a bug.
 
 ## Tests

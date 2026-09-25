@@ -94,7 +94,7 @@ def lines_at(node_id):
     """The lines that call at a stop, ignoring transfer edges.
 
     A graph query, so it lives with the graph. routing.py and
-    tools_build_schedule.py both had their own copy -- identical apart from
+    tools/build_schedule.py both had their own copy -- identical apart from
     quote style -- and both need it to answer the same question: which
     services can somebody board here.
     """

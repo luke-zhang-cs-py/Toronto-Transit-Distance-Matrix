@@ -79,7 +79,7 @@ eleven lines that will not change.
 
 ### Bloaters
 
-`tools_build_buses.build` was **D(27)**, doing five things: selecting routes,
+`build_buses.build` was **D(27)**, doing five things: selecting routes,
 thinning stops, wiring transfers, finding crossings, and stitching islands.
 Split into `_one_route` and `_add_crossings`; nothing in the project is above
 C now.
@@ -115,7 +115,7 @@ properties that `app.js` reads, and every `font-size` lands on the
 ### Global Data
 
 `network.nodes` and `network.adj` are module-level and mutable, built once at
-import. That is the Global Data smell and it bit: `tools_build_buses` imported
+import. That is the Global Data smell and it bit: `build_buses` imported
 `network`, which loads the tool's own previous output, so every stop matched
 *itself* from the last run — 388 self-loops and a second run reporting six
 times the transfer edges of the first. The tool now filters to non-bus nodes

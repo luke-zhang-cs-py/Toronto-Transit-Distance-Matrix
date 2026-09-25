@@ -48,11 +48,11 @@ import math
 
 from flask import Flask, request, jsonify, render_template
 
-import itinerary
-import realtime
-import schedule
+from trips import itinerary
+from feeds import realtime
+from feeds import schedule
 from network import nodes, adj
-from routing import build_route, compute_times
+from trips.routing import build_route, compute_times
 
 app = Flask(__name__)
 

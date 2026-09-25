@@ -11,8 +11,8 @@ import zipfile
 
 import pytest
 
-import geo
-import gtfs
+from trips import geo
+from feeds import gtfs
 
 UNION = (43.6453, -79.3806)
 FINCH = (43.7805, -79.4151)
@@ -44,7 +44,7 @@ def test_it_matches_what_routing_publishes():
     """routing.haversine_km is now a thin alias. The alias exists because
     itinerary and the tests import that name; this checks it still means the
     same thing."""
-    import routing
+    from trips import routing
     assert routing.haversine_km(*UNION, *FINCH) == pytest.approx(geo.km(*UNION, *FINCH))
 
 
@@ -159,8 +159,8 @@ def test_a_failed_download_reports_rather_than_raising(tmp_path, monkeypatch):
 
 def test_the_archive_url_is_defined_once():
     """It was written out in the schedule tool as well; both read it here."""
-    import tools_build_schedule
-    assert tools_build_schedule.GTFS_URL == gtfs.ARCHIVE_URL
+    from tools import build_schedule
+    assert build_schedule.GTFS_URL == gtfs.ARCHIVE_URL
 
 
 def test_both_build_tools_use_the_shared_helpers():
@@ -171,10 +171,10 @@ def test_both_build_tools_use_the_shared_helpers():
     of them locally is that drift starting again.
     """
     import inspect
-    import tools_build_buses
-    import tools_build_schedule
+    from tools import build_buses
+    from tools import build_schedule
 
-    for module in (tools_build_buses, tools_build_schedule):
+    for module in (build_buses, build_schedule):
         source = inspect.getsource(module)
         for name in ("def rows(", "def to_seconds(", "def metres("):
             assert name not in source, f"{module.__name__} redefines {name}"

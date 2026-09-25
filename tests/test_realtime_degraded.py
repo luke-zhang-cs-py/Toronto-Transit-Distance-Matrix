@@ -24,7 +24,7 @@ import urllib.request
 
 import pytest
 
-import realtime
+from feeds import realtime
 
 
 # --------------------------------------------------------- a stand-in feed

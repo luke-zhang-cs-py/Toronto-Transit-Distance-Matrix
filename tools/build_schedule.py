@@ -1,5 +1,5 @@
 """
-tools_build_schedule.py
+tools/build_schedule.py
 ------------------------
 Turn TTC's static GTFS into a departure index this graph can query.
 
@@ -36,8 +36,8 @@ service that began the previous morning as 25:30:00, and collapsing that to
 
 Usage
 -----
-    python tools_build_schedule.py                    # fetch and build
-    python tools_build_schedule.py --zip path/to.zip  # build from a local copy
+    python tools/build_schedule.py                    # fetch and build
+    python tools/build_schedule.py --zip path/to.zip  # build from a local copy
 """
 
 import argparse
@@ -47,12 +47,14 @@ import sys
 import time
 import zipfile
 
-PROJ = os.path.dirname(os.path.abspath(__file__))
+# Two dirnames: this script lives in tools/, and what has to go on
+# sys.path is the project it imports from, not the folder it sits in.
+PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJ)
 
-from gtfs import (ARCHIVE_URL, fetch, rows, stop_positions,  # noqa: E402
+from feeds.gtfs import (ARCHIVE_URL, fetch, rows, stop_positions,  # noqa: E402
                   to_seconds)
-from geo import metres                            # noqa: E402
+from trips.geo import metres                            # noqa: E402
 
 from network import lines_at, nodes                # noqa: E402
 

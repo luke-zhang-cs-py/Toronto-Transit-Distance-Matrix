@@ -1,5 +1,5 @@
 """
-Bus routes, generated from TTC's static GTFS by tools_build_buses.py.
+Bus routes, generated from TTC's static GTFS by tools/build_buses.py.
 
 The other modules in this package are hand-written station lists, which is
 reasonable for two subway lines and a streetcar grid and unreasonable for
@@ -29,14 +29,14 @@ DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bus_routes.json
 # Buses run less often than the subway and are less punctual, so the wait is
 # longer. This is the modelled fallback only -- routes named "<number> <name>"
 # pick up live headways and timetabled departures automatically, which is why
-# tools_build_buses names them that way.
+# build_buses names them that way.
 BUS_WAIT_MIN = 7
 
 
 def load(path=DATA):
     """Add the generated routes to the shared graph. Returns how many stops."""
     if not os.path.exists(path):
-        log.info("no %s; run tools_build_buses.py to add bus routes", path)
+        log.info("no %s; run tools/build_buses.py to add bus routes", path)
         return 0
 
     try:

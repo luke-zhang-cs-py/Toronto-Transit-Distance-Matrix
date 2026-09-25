@@ -10,9 +10,9 @@ import datetime as dt
 
 import pytest
 
-import itinerary
-import realtime
-import schedule
+from trips import itinerary
+from feeds import realtime
+from feeds import schedule
 
 UNION = (43.6453, -79.3806)
 FINCH = (43.7805, -79.4151)
@@ -97,7 +97,7 @@ def test_leaving_later_arrives_later(static):
 # ------------------------------------------------------------------- waits
 
 @pytest.mark.skipif(not schedule.available(),
-                    reason="no schedule index; run tools_build_schedule.py")
+                    reason="no schedule index; run tools/build_schedule.py")
 def test_a_wait_comes_from_the_timetable(static):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
     waits = legs_of(transit_option(plan), "wait")

@@ -17,7 +17,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from network import nodes, adj, WAIT_BY_MODE, DEFAULT_WAIT_MIN  # noqa: E402
-from routing import build_route, compute_times, haversine_km, walk_minutes  # noqa: E402
+from trips.routing import build_route, compute_times, haversine_km, walk_minutes  # noqa: E402
 
 # Somewhere central and somewhere north, far enough apart to need the subway.
 UNION = (43.6453, -79.3806)

@@ -15,8 +15,8 @@ actual travel times and trips. Two public entry points:
 
 import heapq
 
-import geo
-import realtime
+from trips import geo
+from feeds import realtime
 from network import nodes, adj, WALK_KMH, lines_at
 
 

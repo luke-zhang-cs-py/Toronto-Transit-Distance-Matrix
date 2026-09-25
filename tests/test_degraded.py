@@ -48,7 +48,7 @@ def refusing_urlopen(*_a, **_kw):
 
 
 def test_the_archive_downloads_over_urllib_when_it_can(tmp_path, monkeypatch):
-    import gtfs
+    from feeds import gtfs
 
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda url, timeout=None: FakeResponse(b"zip-data"))
@@ -61,7 +61,7 @@ def test_the_archive_falls_back_to_curl(tmp_path, monkeypatch):
     """urllib cannot verify the chain behind an inspecting proxy; curl
     verifies differently and gets through. That is why there are two, and
     the second had never run."""
-    import gtfs
+    from feeds import gtfs
 
     monkeypatch.setattr(urllib.request, "urlopen", refusing_urlopen)
     dest = tmp_path / "gtfs.zip"
@@ -83,7 +83,7 @@ def test_a_download_that_writes_nothing_is_not_a_success(tmp_path,
     """curl can exit 0 having written an empty file. Calling that a
     downloaded archive turns a network problem into a parse error later,
     somewhere much less obvious."""
-    import gtfs
+    from feeds import gtfs
 
     monkeypatch.setattr(urllib.request, "urlopen", refusing_urlopen)
     dest = tmp_path / "gtfs.zip"
@@ -97,7 +97,7 @@ def test_a_download_that_writes_nothing_is_not_a_success(tmp_path,
 
 def test_both_ways_failing_is_reported_rather_than_raised(tmp_path,
                                                           monkeypatch):
-    import gtfs
+    from feeds import gtfs
 
     def no_curl(args, timeout=None):
         raise OSError("curl is not installed")
@@ -168,7 +168,7 @@ def test_the_search_keeps_the_cheapest_time_for_each_stop():
     than reaching into the heap to update it. The superseded entry stays in
     there and has to be recognised as out of date when it surfaces -- acting
     on it would overwrite a good time with a worse one."""
-    import routing
+    from trips import routing
     from network import graph
 
     node = graph.nodes[next(iter(graph.nodes))]
@@ -185,7 +185,7 @@ def test_a_zero_wait_is_not_charged_to_a_leg():
     first leg that is not a walk. Nothing to move is the ordinary case for a
     trip starting on a platform, and it must leave the legs alone rather
     than labelling one with a zero."""
-    import routing
+    from trips import routing
 
     segments = [{"type": "walk", "minutes": 4.0},
                 {"type": "ride", "minutes": 10.0, "line": "Line 1"}]
@@ -208,7 +208,7 @@ def no_schedule(monkeypatch):
     """Every schedule reader starts by asking load() for the index. With no
     index built, each has to answer "I do not know" in its own shape rather
     than raising or inventing a time."""
-    import schedule
+    from feeds import schedule
     monkeypatch.setattr(schedule, "load", lambda path=None: None)
     return schedule
 
@@ -230,7 +230,7 @@ def test_a_line_with_no_times_on_a_date_has_no_span(monkeypatch):
     span is the honest answer; the first and last of an empty list is not."""
     import datetime as dt
 
-    import schedule
+    from feeds import schedule
 
     monkeypatch.setattr(schedule, "load", lambda path=None: {
         "departures": {"STOP": {"Line 9": {"SUNDAY": [3600]}}},

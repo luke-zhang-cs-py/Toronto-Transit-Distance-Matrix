@@ -265,7 +265,7 @@ footer a { color: inherit; }
 <section class="panel">
   <h2>The timetable index, and why it expires</h2>
   <p class="sub">
-    <code>tools_build_schedule.py</code> streams the TTC's 207&nbsp;MB GTFS
+    <code>tools/build_schedule.py</code> streams the TTC's 207&nbsp;MB GTFS
     archive once and writes a small index of departures. Everything works
     without it, on live headways and modelled waits, and every response says
     which it used.
@@ -372,27 +372,29 @@ footer a { color: inherit; }
  * stale quietly -- `python tools/refresh_figures.py` rewrites them. */
 
 var MODULES = [
-  { name: 'realtime.py',           lines: 569, stmts: 237, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
-  { name: 'itinerary.py',          lines: 576, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
-  { name: 'schedule.py',           lines: 268, stmts: 116, missed:  0, does: 'when the next one actually leaves, from the index' },
+  { name: 'feeds/realtime.py',     lines: 569, stmts: 237, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
+  { name: 'trips/itinerary.py',    lines: 576, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'feeds/schedule.py',     lines: 272, stmts: 117, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                lines: 266, stmts: 109, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
-  { name: 'routing.py',            lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
+  { name: 'trips/routing.py',      lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
   { name: 'network/regional.py',   lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
-  { name: 'gtfs.py',               lines: 123, stmts:  41, missed:  1, does: 'reads the GTFS archive; shared by both build tools' },
+  { name: 'feeds/gtfs.py',         lines: 123, stmts:  41, missed:  1, does: 'reads the GTFS archive; shared by both build tools' },
   { name: 'network/buses.py',      lines:  72, stmts:  32, missed:  0, does: '28 bus routes, loaded from a built JSON file' },
   { name: 'network/graph.py',      lines: 101, stmts:  32, missed:  0, does: 'add_node / add_edge / chain, and nothing else' },
   { name: 'network/streetcars.py', lines:  96, stmts:  29, missed:  0, does: 'the downtown grid, and its subway transfers' },
-  { name: 'geo.py',                lines:  48, stmts:  13, missed:  0, does: 'haversine and the walk time; both tools had a copy' },
   { name: 'network/subway.py',     lines: 102, stmts:  13, missed:  0, does: 'Line 1 and Line 2 with their extensions' },
-  { name: 'network/__init__.py',   lines:  29, stmts:   7, missed:  0, does: 'builds the graph in dependency order' }
+  { name: 'trips/geo.py',          lines:  48, stmts:  13, missed:  0, does: 'haversine and the walk time; both tools had a copy' },
+  { name: 'network/__init__.py',   lines:  29, stmts:   7, missed:  0, does: 'builds the graph in dependency order' },
+  { name: 'feeds/__init__.py',     lines:   6, stmts:   0, missed:  0, does: 'the package: what TTC publishes, read in one place' },
+  { name: 'trips/__init__.py',     lines:   6, stmts:   0, missed:  0, does: 'the package: coordinates in, itineraries out' }
 ];
 
 /* The two build tools are omitted from coverage on purpose, and named here so
  * the omission is visible rather than silent: each streams the 207 MB GTFS
  * archive, so exercising them in the suite would mean shipping it. */
 var OMITTED = [
-  { name: 'tools_build_schedule.py', lines: 336, why: '207 MB of GTFS -> a departures index' },
-  { name: 'tools_build_buses.py',    lines: 472, why: 'the same archive -> network/bus_routes.json' }
+  { name: 'tools/build_schedule.py', lines: 338, why: '207 MB of GTFS -> a departures index' },
+  { name: 'tools/build_buses.py',    lines: 474, why: 'the same archive -> network/bus_routes.json' }
 ];
 
 var TESTS = [
@@ -407,7 +409,7 @@ var TESTS = [
   { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' }
 ];
 
-var TEST_LINES = 2763;
+var TEST_LINES = 2768;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so
