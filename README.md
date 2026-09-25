@@ -78,6 +78,9 @@ levels up, because getting that wrong does not raise: the departures simply
 stop being found, the suite skips instead of failing, and the app falls back
 to average headways as though no timetable had ever been built.
 
+`notes/` holds the long-form write-ups — `CODE_AUDIT.md` — and
+`CONTRIBUTING.md` is in `.github/`, which is where GitHub looks for it.
+
 ## Tests
 
 ```bash
@@ -90,4 +93,4 @@ realtime tests run against recorded feeds, one containing a real Line 2 closure.
 
 ## License
 
-[MIT](LICENSE) — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and test conventions.
+[MIT](LICENSE) — see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for setup and test conventions.

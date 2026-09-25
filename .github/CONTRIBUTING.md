@@ -62,5 +62,5 @@ decision — `DRIVE_KMH = 26.0` is a claim about city traffic, not a speed
 limit, and it says so above the constant. Shared helpers live in `geo.py` and
 `gtfs.py`; a structural test fails if a build tool redefines one.
 
-See [CODE_AUDIT.md](CODE_AUDIT.md) for the current state of the code smells,
+See [../notes/CODE_AUDIT.md](../notes/CODE_AUDIT.md) for the current state of the code smells,
 complexity and coverage.
