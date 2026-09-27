@@ -148,16 +148,19 @@ function paintNodes(){
   const cutoff = parseFloat(document.getElementById('slider').value);
   let count=0;
   Object.entries(currentTimes).forEach(([id,t])=>{
+    /* Escaped: a Leaflet tooltip given a string sets it as HTML, and the
+     * names are GTFS stop names from a file this repo did not write. Every
+     * other name on the page already goes through esc(). */
     if(t<=cutoff) count++;
     const color = t>cutoff ? '#2a2e33' : lerpColor(Math.min(1,t/cutoff));
     const r = t>cutoff ? 4 : 7;
     const n = NETWORK.nodes[id];
     if(!nodeMarkers[id]){
       nodeMarkers[id] = L.circleMarker([n.lat,n.lon], {radius:r, color:'#080a0d', weight:1,
-        fillColor:color, fillOpacity:0.9}).addTo(map).bindTooltip(`${n.name}: ${t.toFixed(1)} min`);
+        fillColor:color, fillOpacity:0.9}).addTo(map).bindTooltip(`${esc(n.name)}: ${t.toFixed(1)} min`);
     } else {
       nodeMarkers[id].setStyle({fillColor:color, radius:r, fillOpacity:0.9, opacity:1});
-      nodeMarkers[id].setTooltipContent(`${n.name}: ${t.toFixed(1)} min`);
+      nodeMarkers[id].setTooltipContent(`${esc(n.name)}: ${t.toFixed(1)} min`);
     }
   });
   document.getElementById('stCount').textContent = count + ' of ' + Object.keys(NETWORK.nodes).length;

@@ -140,6 +140,23 @@ def test_curl_returning_nothing_is_none_not_empty_bytes(monkeypatch):
     assert realtime._fetch("http://example.invalid/feed") is None
 
 
+def test_a_curl_that_failed_part_way_is_not_a_feed(monkeypatch):
+    """curl exits 28 on a timeout with whatever it had already received on
+    stdout. That used to be returned as the feed, and a protobuf cut off at
+    an entity boundary parses without complaint -- as a network with most
+    of its routes missing."""
+    def refuse(url, timeout=None):
+        raise urllib.error.URLError("no")
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda args, capture_output=None, timeout=None:
+        subprocess.CompletedProcess(args, 28, stdout=b"the first half"))
+
+    assert realtime._fetch("http://example.invalid/feed") is None
+
+
 def test_both_ways_failing_gives_up_quietly(monkeypatch):
     def refuse(url, timeout=None):
         raise urllib.error.URLError("no")

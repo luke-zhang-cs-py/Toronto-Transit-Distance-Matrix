@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Toronto Transit Reach (Python)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -102,9 +103,10 @@
     </div>
   </div>
 
-  <footer>Fixed schematic network model (TTC subway/streetcar + YRT/Viva + MiWay + highway
-    corridor hubs) with typical dwell/wait/transfer times — not a live feed. All routing runs
-    in the Python backend; the browser only draws the results.</footer>
+  <footer>Schematic network model (TTC subway/streetcar/bus + YRT/Viva + MiWay + highway
+    corridor hubs). Waits come from TTC's timetable and live GTFS-realtime feed where they
+    cover a line, and are modelled where they do not — the Data badge says which. All routing
+    runs in the Python backend; the browser only draws the results.</footer>
 </div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

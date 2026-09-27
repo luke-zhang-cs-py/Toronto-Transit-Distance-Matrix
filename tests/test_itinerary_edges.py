@@ -11,8 +11,6 @@ import and is enough.
 
 import datetime as dt
 
-import pytest
-
 from trips import itinerary
 from network import nodes
 

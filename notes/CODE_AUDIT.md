@@ -1,5 +1,8 @@
 # Code audit
 
+*The sections below the first rule are the 160-test pass, kept as it was.
+The most recent pass is [at the end](#27-september-2026-235-tests-100).*
+
 Static analysis (flake8, radon), a 160-test suite, and a coverage report.
 
 ```bash
@@ -219,3 +222,44 @@ Thirteen `E501`s in `network/regional.py` and `network/streetcars.py`. All are
 one-line station definitions — `{id, name, lat, lon}` per row — in data tables
 where one row per line is more scannable than a wrapped block. All are under
 the 127-character limit the CI enforces.
+
+## 27 September 2026: 235 tests, 100%
+
+1,055 statements, none missed (1,015 and one missed before: the
+`dest is None` guard in `gtfs.fetch` had never run). Six bugs, each with a
+test that was watched failing against the unfixed code:
+
+- **An offset timestamp was a 500.** `departAt: "...T21:20:00+00:00"`
+  parsed to an aware datetime and the timetable lookup raised `TypeError`
+  comparing it with naive entries. `app._depart_at` and `itinerary.plan` now
+  convert to Toronto wall-clock time.
+- **"Leave now" used the machine's zone.** The timetable is Toronto time;
+  a server in London planned 17:00 against the 17:00 timetable, five hours
+  out. `schedule.local_now()` reads Toronto whatever the host, and `when.js`
+  seeds "Leave at" from Toronto's clock rather than the browser's.
+- **A 404 was saved as the GTFS archive.** curl without `--fail` writes the
+  error page and exits 0, and `build_schedule.py` reuses an archive already
+  on disk, so one bad download broke every later run. `IncompleteRead`
+  escaped `fetch()` entirely and left an empty file. Failures now leave
+  nothing at `dest`.
+- **The realtime fetch ignored curl's exit status**, so a transfer cut off
+  by `--max-time` was handed to the parser as a feed.
+- **The debug reloader ran startup twice.** The watcher process fetched the
+  feed and kept its own refresher polling TTC every 30 s. Startup is now
+  `app.main()`, which warms the feed only in the serving process.
+- **Stop names went into tooltips unescaped.** Leaflet sets a string
+  tooltip as HTML; every other name already went through `esc()`.
+
+Also: the Flask footer said "not a live feed"; both pages had no viewport
+meta (`here.js` is written for phones); `gtfs.py` said the archive was 82 MB
+(it is 36); the empty disruption table was written out five times in
+`realtime.py`; two magic numbers got names. `tests/test_static_build.py`
+fails if `docs/app/` is stale against its sources, and runs the ported
+Dijkstra in Node against `compute_times` for four origins -- the build's own
+check compares a Python transcription of the port, not the port.
+
+Left alone: `realtime._feed` serves the last good parse indefinitely while
+the feed is down and still reports `live: true` (by design, but nothing
+ages it out); `_later_departures` offers later times for the first
+*timetabled* boarding, which is not always the first vehicle its docstring
+promises; `_search` and `_stitch_islands` stay over flake8's complexity 10.

@@ -40,8 +40,37 @@ import json
 import logging
 import os
 import threading
+import zoneinfo
 
 log = logging.getLogger(__name__)
+
+# The zone TTC's timetable is written in (agency_timezone in its GTFS). Every
+# datetime this module is handed or returns is a naive wall-clock time *here*,
+# because that is what "17:22:16" in stop_times.txt means.
+#
+# Named rather than left to the machine's clock. `datetime.now()` is the
+# server's local time, which is only Toronto's if the server is in Toronto --
+# run from London and "leave now" at 17:00 planned against the 17:00
+# timetable, five hours before the trains it listed.
+TIMEZONE = zoneinfo.ZoneInfo("America/Toronto")
+
+
+def local_now():
+    """Now, as a naive Toronto wall-clock time, whatever the machine's zone."""
+    return to_local(dt.datetime.now(dt.timezone.utc))
+
+
+def to_local(moment):
+    """An aware datetime as naive Toronto wall-clock time; naive ones as-is.
+
+    Naive is taken to be Toronto already, which is what every caller in this
+    project means by it. Aware is converted rather than compared: mixing the
+    two raises TypeError at the first `>=` against a timetable entry.
+    """
+    if moment.tzinfo is None:
+        return moment
+    return moment.astimezone(TIMEZONE).replace(tzinfo=None)
+
 
 # Two dirnames, not one: this module lives in feeds/, and the index
 # tools/build_schedule.py writes sits at the project root. Getting this wrong

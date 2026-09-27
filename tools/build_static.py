@@ -259,10 +259,11 @@ def page(template):
     text = trip_card(text)
     text = replace_once(
         text,
-        """<footer>Fixed schematic network model (TTC subway/streetcar + YRT/Viva + MiWay + highway
-    corridor hubs) with typical dwell/wait/transfer times — not a live feed. All routing runs
-    in the Python backend; the browser only draws the results.</footer>""",
-        """<footer>Fixed schematic network model (TTC subway/streetcar + YRT/Viva + MiWay + highway
+        """<footer>Schematic network model (TTC subway/streetcar/bus + YRT/Viva + MiWay + highway
+    corridor hubs). Waits come from TTC's timetable and live GTFS-realtime feed where they
+    cover a line, and are modelled where they do not — the Data badge says which. All routing
+    runs in the Python backend; the browser only draws the results.</footer>""",
+        """<footer>Fixed schematic network model (TTC subway/streetcar/bus + YRT/Viva + MiWay + highway
     corridor hubs) with typical dwell/wait/transfer times — not a live feed. In this build the
     routing runs in the browser, over a copy of the graph generated from the Python
     <code>network</code> package by <code>tools/build_static.py</code>; the Flask app in the
@@ -345,7 +346,13 @@ def prune(kept):
                 print("  removed stale %s" % os.path.relpath(path, OUT))
 
 
-def main():
+def render():
+    """Every file docs/app/ should hold, as {relative path: text}.
+
+    Separate from writing them so a test can compare this against what is
+    committed: a change to static/js/app.js that nobody rebuilt for is a
+    live demo running last week's code, and nothing else would notice.
+    """
     graph = collect_graph()
     written = {}
 
@@ -361,7 +368,11 @@ def main():
                                 + read(os.path.join(ROOT, "static", "css", "style.css")))
     written["css/static.css"] = read(os.path.join(SRC, "css", "static.css"))
     written["index.html"] = page(read(os.path.join(ROOT, "templates", "index.html")))
+    return graph, written
 
+
+def main():
+    graph, written = render()
     for name, body in sorted(written.items()):
         write(os.path.join(OUT, name.replace("/", os.sep)), body)
     prune(set(written))

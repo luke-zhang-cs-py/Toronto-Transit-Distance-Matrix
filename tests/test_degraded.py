@@ -95,6 +95,71 @@ def test_a_download_that_writes_nothing_is_not_a_success(tmp_path,
     assert gtfs.fetch(dest=str(dest)) is False
 
 
+def curl_as_it_behaves(page=b"<html>404 Not Found</html>", status=22):
+    """A stand-in for curl pointed at a URL that answers 404.
+
+    It honours the flag that decides the outcome, because that is the bug:
+    without --fail, real curl writes the error page to -o and exits 0; with
+    it, it writes nothing and exits 22. A fake that ignored the flags could
+    not tell the two versions of fetch() apart.
+    """
+    def run(args, timeout=None):
+        fails = "--fail" in args or any(
+            arg.startswith("-") and not arg.startswith("--") and "f" in arg
+            for arg in args)
+        if fails:
+            return subprocess.CompletedProcess(args, status)
+        with io.open(args[args.index("-o") + 1], "wb") as handle:
+            handle.write(page)
+        return subprocess.CompletedProcess(args, 0)
+    return run
+
+
+def test_an_http_error_page_is_not_saved_as_the_archive(tmp_path,
+                                                        monkeypatch):
+    """The portal's resource URL changes when the dataset is republished.
+    curl then saved the 404 page as _gtfs.zip and fetch() said True -- and
+    because build_schedule.py reuses an archive already on disk, every later
+    run failed with BadZipFile until somebody found the file."""
+    from feeds import gtfs
+
+    monkeypatch.setattr(urllib.request, "urlopen", refusing_urlopen)
+    monkeypatch.setattr(subprocess, "run", curl_as_it_behaves())
+    dest = tmp_path / "gtfs.zip"
+    assert gtfs.fetch(dest=str(dest)) is False
+    assert not dest.exists()
+
+
+def test_a_download_cut_off_mid_read_leaves_no_file(tmp_path, monkeypatch):
+    """IncompleteRead is an HTTPException, not an OSError, so it escaped
+    fetch() entirely -- after open() had already created an empty dest,
+    which the next build run would then pick up as the archive."""
+    import http.client
+    from feeds import gtfs
+
+    class CutOff(FakeResponse):
+        def read(self):
+            raise http.client.IncompleteRead(b"PK\x03\x04partial")
+
+    def no_curl(args, timeout=None):
+        raise OSError("curl is not installed")
+
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda url, timeout=None: CutOff())
+    monkeypatch.setattr(subprocess, "run", no_curl)
+    dest = tmp_path / "gtfs.zip"
+    assert gtfs.fetch(dest=str(dest)) is False
+    assert not dest.exists()
+
+
+def test_fetch_says_what_is_missing_without_a_destination():
+    """Rather than failing two lines later as open(None, "wb")."""
+    from feeds import gtfs
+
+    with pytest.raises(ValueError, match="dest"):
+        gtfs.fetch("https://example.invalid/x.zip")
+
+
 def test_both_ways_failing_is_reported_rather_than_raised(tmp_path,
                                                           monkeypatch):
     from feeds import gtfs

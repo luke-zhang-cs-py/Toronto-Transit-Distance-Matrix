@@ -53,7 +53,7 @@ PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJ)
 
 from feeds.gtfs import (ARCHIVE_URL, fetch, rows, stop_positions,  # noqa: E402
-                  to_seconds)
+                        to_seconds)
 from trips.geo import metres                            # noqa: E402
 
 from network import lines_at, nodes                # noqa: E402

@@ -28,6 +28,18 @@ function twoDigit(n) {
   return String(n).padStart(2, '0');
 }
 
+/* HH:MM:SS on a Toronto wall clock. formatToParts rather than a formatted
+   string, because en-GB and en-US disagree about "24:00" at midnight and
+   about separators; the parts are just numbers. */
+function torontoClock(moment) {
+  const parts = {};
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto', hourCycle: 'h23',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(moment).forEach((p) => { parts[p.type] = p.value; });
+  return [parts.hour, parts.minute, parts.second].map(twoDigit).join(':');
+}
+
 function setWhenMode(mode) {
   whenMode = mode;
   document.querySelectorAll('#whenMode .seg').forEach((b) => {
@@ -41,10 +53,12 @@ function setWhenMode(mode) {
     if (field && !field.value) {
       /* Seeded with the current time including seconds, so switching over
          continues from where "leave now" was rather than jumping to 00:00
-         and reporting that there are no trains. */
-      const now = new Date();
-      field.value = [now.getHours(), now.getMinutes(), now.getSeconds()]
-        .map(twoDigit).join(':');
+         and reporting that there are no trains.
+
+         Toronto's clock, not the browser's: the server reads this field as
+         Toronto time, because that is what the timetable is in. Seeding it
+         from a browser in London put the departure five hours ahead. */
+      field.value = torontoClock(new Date());
     }
   }
   if (typeof planTrip === 'function') planTrip();

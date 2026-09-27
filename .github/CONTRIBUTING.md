@@ -34,7 +34,7 @@ pytest -q
 mv /tmp/schedule_index.json .  # what you see
 ```
 
-The suite has to pass both ways — 160 with the index, 149 and 11 skipped
+The suite has to pass both ways — 235 with the index, 218 and 17 skipped
 without. If a test needs the timetable, mark it
 `@pytest.mark.skipif(not schedule.available(), ...)` rather than assuming.
 

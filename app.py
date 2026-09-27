@@ -1,12 +1,14 @@
 """
 Toronto Transit Reach — Flask entry point.
 
-This file is deliberately thin: it wires up three HTTP endpoints and
-hands off everything else to the rest of the package.
+This file is deliberately thin: it validates requests for the endpoints
+below and hands off everything else to the rest of the package.
 
-    network/        the transit graph — subway, streetcars, YRT/MiWay,
+    network/         the transit graph — subway, streetcars, buses, YRT/MiWay,
                      highway hubs (see network/__init__.py for the map)
-    routing.py       Dijkstra reachability + point-to-point trip building
+    trips/           Dijkstra reachability, point-to-point routes, and
+                     clock-time itineraries (routing.py, itinerary.py)
+    feeds/           the GTFS timetable index and the live GTFS-realtime feed
     templates/       the page shell (Jinja)
     static/css, js   styling and all browser-side interaction
 
@@ -25,15 +27,18 @@ POST /api/reach       body {lat, lon} -> {times: {node_id: minutes}, live}
 POST /api/route       body {olat, olon, dlat, dlon} ->
                         {total, totalKm, segments:[...], live}
                         (point-to-point trip planning)
+POST /api/trips       body {olat, olon, dlat, dlon, departAt?, ...} ->
+                        {options: [...], departAt, live, ...}
+                        (several trips for a departure, with clock times)
 GET  /api/live        -> feed freshness, closures, coverage
 
-Both POST bodies accept "live": false to force the fixed schedule model.
+Every POST body accepts "live": false to force the fixed schedule model.
 
 Live data
 ---------
 Waits and closures come from TTC's GTFS-realtime feed, which is open and
 needs no API key (bustime.ttc.ca). An earlier version of this note said
-that feed had been retired; it has not. See realtime.py for what the feed
+that feed had been retired; it has not. See feeds/realtime.py for what the feed
 can and cannot answer, and for how a route degrades to the fixed schedule
 model when it is unreachable.
 
@@ -47,6 +52,7 @@ import datetime as dt
 import math
 
 from flask import Flask, request, jsonify, render_template
+from werkzeug.serving import is_running_from_reloader
 
 from trips import itinerary
 from feeds import realtime
@@ -60,6 +66,13 @@ app = Flask(__name__)
 # will happily return a number for it rather than saying so.
 LAT_RANGE = (-90.0, 90.0)
 LON_RANGE = (-180.0, 180.0)
+
+# How many alternative routings and later departures /api/trips will compute.
+# Each alternative is another full search, so the ceiling is a cost bound.
+MAX_ALTERNATIVES = 5
+MAX_LATER = 8
+
+DEPART_AT_FORMS = "'departAt' must be \"HH:MM\", an ISO timestamp, or \"now\"."
 
 
 class BadRequest(Exception):
@@ -105,28 +118,36 @@ def _depart_at(body):
     Rejected rather than guessed if it is neither: silently planning for
     "now" when somebody asked for 17:20 gives them a plausible itinerary for
     the wrong journey, which is worse than an error.
+
+    Every answer is Toronto wall-clock time, naive, because that is what the
+    timetable is written in. "Now" and "today" are read in Toronto rather
+    than off the machine's clock, and a timestamp that carries an offset
+    ("...T21:20:00Z") is converted to Toronto rather than kept aware: an
+    aware datetime used to reach the timetable lookup and raise TypeError
+    against its naive entries, which the caller saw as a 500.
     """
-    raw = (body or {}).get("departAt") if isinstance(body, dict) else None
+    raw = body.get("departAt") if isinstance(body, dict) else None
     if raw in (None, "", "now"):
-        return dt.datetime.now().replace(second=0, microsecond=0)
+        return schedule.local_now().replace(second=0, microsecond=0)
     if not isinstance(raw, str):
-        raise BadRequest("'departAt' must be \"HH:MM\", an ISO timestamp, or \"now\".")
+        raise BadRequest(DEPART_AT_FORMS)
 
     text = raw.strip()
     for pattern in ("%H:%M", "%H:%M:%S"):
         try:
             clock = dt.datetime.strptime(text, pattern).time()
-            return dt.datetime.combine(dt.date.today(), clock)
+            return dt.datetime.combine(schedule.local_now().date(), clock)
         except ValueError:
             pass
     try:
-        return dt.datetime.fromisoformat(text).replace(second=0, microsecond=0)
+        moment = dt.datetime.fromisoformat(text)
     except ValueError:
-        raise BadRequest("'departAt' must be \"HH:MM\", an ISO timestamp, or \"now\".")
+        raise BadRequest(DEPART_AT_FORMS)
+    return schedule.to_local(moment).replace(second=0, microsecond=0)
 
 
 def _count(body, key, default, low, high):
-    value = (body or {}).get(key, default) if isinstance(body, dict) else default
+    value = body.get(key, default) if isinstance(body, dict) else default
     try:
         value = int(value)
     except (TypeError, ValueError):
@@ -225,11 +246,13 @@ def api_trips():
     olat, olon = _point(body, 'olat', 'olon')
     dlat, dlon = _point(body, 'dlat', 'dlon')
     depart_at = _depart_at(body)
-    alternatives = _count(body, 'alternatives', itinerary.DEFAULT_ALTERNATIVES, 0, 5)
-    later = _count(body, 'later', itinerary.DEFAULT_LATER, 0, 8)
+    alternatives = _count(body, 'alternatives', itinerary.DEFAULT_ALTERNATIVES,
+                          0, MAX_ALTERNATIVES)
+    later = _count(body, 'later', itinerary.DEFAULT_LATER, 0, MAX_LATER)
     # Comparison on by default: a transit time is only useful next to the
-    # alternative somebody would otherwise choose.
-    compare = (body or {}).get('compare', True) is not False
+    # alternative somebody would otherwise choose. `body` is a dict by now --
+    # _point would have refused anything else.
+    compare = body.get('compare', True) is not False
 
     return jsonify(itinerary.plan((olat, olon), (dlat, dlon),
                                   depart_at=depart_at,
@@ -251,16 +274,37 @@ def api_live():
     return jsonify(snap)
 
 
+def main(run=None):
+    """Warm the live reading, then serve on port 5000 with the debugger on.
+
+    The warm-up runs only in the process that serves. `debug=True` turns on
+    Werkzeug's reloader, which runs this script twice: a watcher process
+    that restarts the server when a file changes, and the server, which
+    is_running_from_reloader() identifies. What precedes `app.run` ran in
+    both -- so startup paid the 5-second first fetch twice, and the watcher,
+    which never answers a request, kept its own refresher polling TTC every
+    30 seconds for as long as the app was up.
+
+    `run` is `app.run` unless a test replaces it.
+    """
+    run = run or app.run
+    if is_running_from_reloader():
+        print(f"Loaded {len(nodes)} stops / "
+              f"{sum(len(v) for v in adj.values()) // 2} edges.")
+        # Warm the live reading before serving, and keep it warm on a
+        # background thread. Without this the first route request pays the
+        # fetch -- measured at 5.2 seconds for 730 KB -- and one request
+        # every TTL pays it again.
+        realtime.start_refresh()
+        if realtime.refresh():
+            snap = realtime.snapshot()
+            print(f"Live TTC feed: {snap['routesWithObservedHeadway']} routes "
+                  f"measured, {len(snap['closed'])} closed, "
+                  f"{len(snap['detour'])} on detour.")
+        else:
+            print("Live TTC feed unavailable -- serving the fixed schedule model.")
+    run(debug=True, port=5000)
+
+
 if __name__ == '__main__':
-    print(f"Loaded {len(nodes)} stops / {sum(len(v) for v in adj.values()) // 2} edges.")
-    # Warm the live reading before serving, and keep it warm on a background
-    # thread. Without this the first route request pays the fetch -- measured
-    # at 5.2 seconds for 730 KB -- and one request every TTL pays it again.
-    realtime.start_refresh()
-    if realtime.refresh():
-        snap = realtime.snapshot()
-        print(f"Live TTC feed: {snap['routesWithObservedHeadway']} routes measured, "
-              f"{len(snap['closed'])} closed, {len(snap['detour'])} on detour.")
-    else:
-        print("Live TTC feed unavailable -- serving the fixed schedule model.")
-    app.run(debug=True, port=5000)
+    main()

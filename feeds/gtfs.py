@@ -19,6 +19,7 @@ Nothing here knows about the graph. It reads an archive and hands back rows.
 """
 
 import csv
+import http.client
 import io
 import os
 import subprocess
@@ -51,26 +52,51 @@ def fetch(url=ARCHIVE_URL, dest=None, timeout=400):
     reasoning as realtime._fetch.
 
     `dest` has no real default -- there is nowhere sensible to write an
-    82 MB archive without being told -- so it stays keyword-optional only to
+    36 MB archive without being told -- so it stays keyword-optional only to
     let `url` be positional, and is checked here rather than left to fail as
     a bare `open(None, "wb")` TypeError two lines down, which says nothing
     about what was actually missing.
+
+    A failure leaves nothing at `dest`. build_schedule.py reuses an archive
+    that is already on disk rather than download 36 MB again, so a partial
+    or wrong file left behind is not one failed run, it is every run after
+    it failing with BadZipFile until somebody finds the file and deletes it.
+    Two ways that used to happen: curl without `--fail` saves an HTTP error
+    page to `dest` and exits 0, which read as a successful download -- and
+    the portal's resource URL does change when the dataset is republished --
+    and a connection dropped mid-read left the empty file `open()` had made.
     """
     if dest is None:
         raise ValueError("fetch() requires dest: a path to write the archive to")
+    if _fetch_once(url, dest, timeout):
+        return True
+    _discard(dest)
+    return False
+
+
+def _fetch_once(url, dest, timeout):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response, \
                 open(dest, "wb") as handle:
             handle.write(response.read())
         return True
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, http.client.HTTPException, OSError,
+            ValueError):
         pass
     try:
-        done = subprocess.run(["curl", "-sL", "--max-time", str(timeout),
+        done = subprocess.run(["curl", "-sSLf", "--max-time", str(timeout),
                                "-o", dest, url], timeout=timeout + 20)
-        return done.returncode == 0 and os.path.getsize(dest) > 0
+        return (done.returncode == 0 and os.path.exists(dest)
+                and os.path.getsize(dest) > 0)
     except (OSError, subprocess.SubprocessError):
         return False
+
+
+def _discard(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def open_archive(path):

@@ -101,6 +101,11 @@ DEFAULT_LATER = 3
 
 TRANSFER_LINE = "Transfer"
 
+# A walk shorter than this -- ten metres -- is standing at the stop, not a
+# leg of the trip, and is left out of the itinerary rather than listed as
+# "Walk to Union, 0 min".
+MIN_LEG_KM = 0.01
+
 # Times are reported to the second.
 #
 # The timetable has them: Line 1 leaves Union at 17:22:16, not "about 17:22".
@@ -278,7 +283,7 @@ def _to_legs(chain, origin, destination, depart_at, arrival, access=ACCESS_WALK)
     first_node = nodes[chain[0][0]]
     access_km = haversine_km(olat, olon, first_node["lat"], first_node["lon"])
     clock = depart_at
-    if access_km > 0.01:
+    if access_km > MIN_LEG_KM:
         driving = access == ACCESS_DRIVE
         minutes = drive_minutes(access_km) if driving else walk_minutes(access_km)
         end = clock + dt.timedelta(minutes=minutes)
@@ -336,7 +341,7 @@ def _to_legs(chain, origin, destination, depart_at, arrival, access=ACCESS_WALK)
 
     last_node = nodes[chain[-1][0]]
     egress_km = haversine_km(last_node["lat"], last_node["lon"], dlat, dlon)
-    if egress_km > 0.01:
+    if egress_km > MIN_LEG_KM:
         minutes = walk_minutes(egress_km)
         legs.append((Leg("walk", minutes, km=round(egress_km, 2),
                          **{"from": {"name": last_node["name"],
@@ -509,7 +514,9 @@ def plan(origin, destination, depart_at=None, conditions=None,
     Options are ordered by how long they take, so the fastest is first --
     which is not always the one that leaves first, and not always transit.
     """
-    depart_at = depart_at or dt.datetime.now().replace(second=0, microsecond=0)
+    # Toronto wall-clock time, naive, like the timetable it is compared with.
+    depart_at = (schedule.to_local(depart_at) if depart_at else
+                 schedule.local_now().replace(second=0, microsecond=0))
     conditions = conditions or realtime.Conditions.static()
 
     options = _transit_options(origin, destination, depart_at, conditions,

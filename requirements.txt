@@ -6,6 +6,12 @@ Flask>=2.3
 # from someone else. No API key -- bustime.ttc.ca is open.
 gtfs-realtime-bindings>=1.0
 
+# The timetable is Toronto wall-clock time, so "now" is read in
+# America/Toronto rather than in whatever zone the machine is set to.
+# zoneinfo needs a zone database: Linux and macOS ship one, Windows does not,
+# and this package is it.
+tzdata; sys_platform == "win32"
+
 # Tests only; the app itself needs nothing but Flask.
 pytest>=7.4
 

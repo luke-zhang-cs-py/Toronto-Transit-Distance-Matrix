@@ -263,3 +263,42 @@ def test_a_bad_route_request_is_400_not_500(client):
 def test_malformed_json_is_not_a_500(client):
     res = client.post("/api/reach", data="{not json", content_type="application/json")
     assert res.status_code == 400
+
+
+# ----------------------------------------------------------------- startup
+
+def _startup(monkeypatch, serving, live=False):
+    """Run app.main() with the server, the feed and the process role faked.
+
+    Returns (what main did to the feed, what it asked app.run for)."""
+    import app as app_module
+    from feeds import realtime
+
+    did = []
+    monkeypatch.setattr(app_module, "is_running_from_reloader", lambda: serving)
+    monkeypatch.setattr(realtime, "start_refresh", lambda: did.append("start"))
+    monkeypatch.setattr(realtime, "refresh",
+                        lambda: did.append("refresh") or live)
+    ran = []
+    app_module.main(run=lambda **options: ran.append(options))
+    return did, ran
+
+
+def test_the_reloader_watcher_does_not_poll_the_feed(monkeypatch):
+    """debug=True runs the script twice: a watcher that restarts the server
+    on a file change, and the server. Both used to fetch the feed at startup
+    and both kept a refresher polling TTC every 30 seconds -- one of them
+    for a process that never answers a request."""
+    did, ran = _startup(monkeypatch, serving=False)
+    assert did == []
+    assert ran == [{"debug": True, "port": 5000}]
+
+
+@pytest.mark.parametrize("live", [True, False])
+def test_the_serving_process_warms_the_feed_first(monkeypatch, capsys, live):
+    did, ran = _startup(monkeypatch, serving=True, live=live)
+    assert did == ["start", "refresh"]
+    assert ran == [{"debug": True, "port": 5000}]
+    said = capsys.readouterr().out
+    assert ("Live TTC feed:" in said) is live
+    assert ("unavailable" in said) is not live

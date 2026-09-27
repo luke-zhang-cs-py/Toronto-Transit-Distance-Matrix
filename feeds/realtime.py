@@ -101,6 +101,17 @@ CLOSED = "closed"
 DETOUR = "detour"
 COSMETIC = "cosmetic"
 
+
+def no_disruptions():
+    """An empty disruption table: nothing closed, nothing on detour.
+
+    A function rather than a shared constant, because the sets are mutable
+    and `disruptions()` fills its own in place -- one shared empty table
+    would stop being empty the first time anybody updated it.
+    """
+    return {"closed": set(), "detour": set(), "notes": []}
+
+
 _lock = threading.Lock()
 _cache = {}          # kind -> {"at": float, "parsed": FeedMessage|None}
 _last_good = {}      # kind -> parsed result, kept so a failed fetch is not a cliff
@@ -109,7 +120,7 @@ _last_good = {}      # kind -> parsed result, kept so a failed fetch is not a cl
 # already computed. Kept separately from the parsed feed because deriving
 # them is not free -- 2,400 trip updates and 30,000 arrival times -- and
 # doing it per request was 98 ms of recomputing an unchanged answer.
-_derived = {"headways": {}, "disrupted": {"closed": set(), "detour": set(), "notes": []},
+_derived = {"headways": {}, "disrupted": no_disruptions(),
             "live": False, "at": 0.0, "feedTimestamp": None}
 
 _refresher = None
@@ -135,9 +146,17 @@ def _fetch(url, timeout=FETCH_TIMEOUT_SECONDS):
     except (urllib.error.URLError, OSError, ValueError) as exc:
         log.debug("urllib could not fetch %s (%s); trying curl", url, exc)
 
+    # --fail, and the exit status read: curl without them hands back an HTTP
+    # error page, or the first half of a transfer that timed out, with the
+    # same exit code as a whole feed. A truncated protobuf that happens to
+    # end on an entity boundary parses cleanly -- as a feed with most of the
+    # network missing from it.
     try:
-        done = subprocess.run(["curl", "-s", "--max-time", str(int(timeout)), url],
+        done = subprocess.run(["curl", "-sf", "--max-time", str(int(timeout)), url],
                               capture_output=True, timeout=timeout + 5)
+        if done.returncode != 0:
+            log.warning("curl could not fetch %s (exit %s)", url, done.returncode)
+            return None
         return done.stdout or None
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("could not fetch %s: %s", url, exc)
@@ -306,7 +325,7 @@ def disruptions(feed=None):
     `impact_on` matches a line name against.
     """
     feed = feed if feed is not None else _feed("alerts")
-    out = {"closed": set(), "detour": set(), "notes": []}
+    out = no_disruptions()
     if feed is None:
         return out
 
@@ -399,7 +418,7 @@ class Conditions:
 
     def __init__(self, headways=None, disrupted=None, live=False):
         self.headways = headways or {}
-        self.disrupted = disrupted or {"closed": set(), "detour": set(), "notes": []}
+        self.disrupted = disrupted or no_disruptions()
         self.live = live
 
     @classmethod
@@ -519,8 +538,7 @@ def refresh():
     live = trips is not None or alerts is not None
 
     headways = observed_headways(trips) if trips is not None else {}
-    disrupted = disruptions(alerts) if alerts is not None else \
-        {"closed": set(), "detour": set(), "notes": []}
+    disrupted = disruptions(alerts) if alerts is not None else no_disruptions()
 
     with _lock:
         _derived.update(headways=headways, disrupted=disrupted, live=live,
@@ -566,4 +584,4 @@ def reset_cache():
         _cache.clear()
         _last_good.clear()
         _derived.update(headways={}, live=False, at=0.0, feedTimestamp=None,
-                        disrupted={"closed": set(), "detour": set(), "notes": []})
+                        disrupted=no_disruptions())

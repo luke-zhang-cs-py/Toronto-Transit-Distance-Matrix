@@ -428,6 +428,78 @@ def test_an_iso_timestamp_plans_for_another_day(client):
     assert body["departAt"] == "06:30:00"
 
 
+def test_a_timestamp_with_an_offset_is_planned_in_toronto_time(client):
+    """An ISO timestamp with an offset parses to an aware datetime, and the
+    timetable's entries are naive -- so the first comparison between them
+    raised TypeError and the request came back as a 500. 21:20 UTC is 17:20
+    in Toronto in September (EDT, UTC-4)."""
+    res = client.post("/api/trips", json={
+        "olat": UNION[0], "olon": UNION[1], "dlat": FINCH[0], "dlon": FINCH[1],
+        "departAt": "2026-09-28T21:20:00+00:00", "live": False})
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["departDate"] == "2026-09-28"
+    assert body["departAt"] == "17:20:00"
+
+
+def test_the_parsed_departure_is_naive_toronto_time():
+    """What the endpoint hands on, not only what comes back: plan() also
+    converts, so the response alone would not show the parser keeping an
+    aware datetime."""
+    import app as app_module
+    parsed = app_module._depart_at({"departAt": "2026-09-28T21:20:00+00:00"})
+    assert parsed == dt.datetime(2026, 9, 28, 17, 20)
+    assert parsed.tzinfo is None
+
+
+# The same instant, as a clock in London reads it and as Toronto does. The
+# difference between the two is the bug: this machine is in Toronto, so a
+# test that read the real clock would pass whether or not "now" was taken in
+# the right zone. Pinning a machine that is somewhere else is what can fail.
+INSTANT_UTC = dt.datetime(2026, 9, 28, 16, 0, tzinfo=dt.timezone.utc)
+LONDON_WALL_CLOCK = dt.datetime(2026, 9, 28, 17, 0)      # BST, UTC+1
+TORONTO_WALL_CLOCK = "12:00:00"                          # EDT, UTC-4
+
+
+class MachineInLondon(dt.datetime):
+    """datetime, on a server whose local zone is Europe/London."""
+
+    @classmethod
+    def now(cls, tz=None):
+        if tz is None:
+            return LONDON_WALL_CLOCK
+        return INSTANT_UTC.astimezone(tz)
+
+
+def test_leave_now_is_toronto_time_on_a_server_elsewhere(client, monkeypatch):
+    """"Leave now" read the machine's clock. Run from London at 17:00 it
+    planned against Toronto's 17:00 timetable -- trains five hours away --
+    and said so with a straight face."""
+    import types
+
+    import app as app_module
+    london = types.SimpleNamespace(
+        datetime=MachineInLondon, date=dt.date, time=dt.time,
+        timedelta=dt.timedelta, timezone=dt.timezone)
+    monkeypatch.setattr(app_module, "dt", london)
+    monkeypatch.setattr(schedule, "dt", london)
+
+    body = client.post("/api/trips", json={
+        "olat": UNION[0], "olon": UNION[1], "dlat": FINCH[0], "dlon": FINCH[1],
+        "departAt": "now", "live": False}).get_json()
+    assert body["departAt"] == TORONTO_WALL_CLOCK
+    assert body["departDate"] == "2026-09-28"
+
+
+def test_plan_takes_an_aware_departure_too():
+    """The library entry point, not only the endpoint: the same instant as
+    an aware UTC datetime and as naive Toronto time is the same plan."""
+    aware = dt.datetime(2026, 9, 28, 21, 20, tzinfo=dt.timezone.utc)
+    plan = itinerary.plan(UNION, FINCH, depart_at=aware, compare=False)
+    assert plan["departAt"] == "17:20:00"
+    assert plan["departDate"] == "2026-09-28"
+
+
 @pytest.mark.parametrize("key,value", [("alternatives", 99), ("later", -1),
                                        ("alternatives", "lots")])
 def test_out_of_range_counts_are_refused(client, key, value):
