@@ -13,8 +13,17 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: that label moves to Ubuntu 26 on 19 October
+    # 2026, and a runner image changing under the suite is a red build with
+    # no code change behind it. Move this on purpose, with a green run.
+    runs-on: ubuntu-24.04
+    # The suite takes under a minute. A job stuck past this is not going to
+    # finish, and failing it says so sooner than the six-hour default.
+    timeout-minutes: 15
     strategy:
+      # One Python failing should not cancel the other: both results matter,
+      # since 3.10 and 3.12 break in different ways.
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.12']
 
