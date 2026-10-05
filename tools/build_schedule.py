@@ -57,6 +57,7 @@ from feeds.gtfs import (ARCHIVE_URL, fetch, rows, stop_positions,  # noqa: E402
 from trips.geo import metres                            # noqa: E402
 
 from network import lines_at, nodes                # noqa: E402
+from tools.project_schedule import project         # noqa: E402
 
 # The archive URL lives in gtfs, which is what both build tools read.
 GTFS_URL = ARCHIVE_URL
@@ -307,6 +308,18 @@ def build(zip_path):
         "unmatched": [{"node": n, "line": ln, "nearestMetres": d}
                       for n, ln, d in unmatched],
     }
+    # Four years past the feed's last date, labelled as a projection
+    # (tools/project_schedule.py). Every rebuild redoes it from the newest
+    # published week, so published dates replace projected ones as TTC
+    # releases them.
+    # A feed with no ordinary week to repeat still builds: the published
+    # dates are the point, the projection only extends them.
+    try:
+        summary = project(payload)
+        log(f"    projected {summary['from']} to {summary['through']} from the week of "
+            f"{summary['weekOf']}, {summary['holidays']} holiday dates")
+    except ValueError as exc:
+        log(f"    no projection: {exc}")
     with open(INDEX_PATH, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, separators=(",", ":"))
     log(f"  wrote {INDEX_PATH} "

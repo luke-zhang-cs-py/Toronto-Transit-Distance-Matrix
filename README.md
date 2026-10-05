@@ -26,6 +26,19 @@ python app.py                      # http://127.0.0.1:5000
 python tools/build_schedule.py     # optional: adds timetabled departures
 ```
 
+**Four years ahead, labelled as a projection.** TTC publishes one board period
+at a time, six to eight weeks ahead. `build_schedule.py` therefore also runs
+`tools/project_schedule.py`, which repeats the latest published week with no
+holiday in it for four years past the feed's last date. Ontario's statutory
+holidays and Civic Holiday go on the feed's own holiday service, and a weekend
+holiday is also observed on the next free weekday. Projected dates are kept
+apart from published ones (`projected` in the index), and a wait read from them
+is labelled **projected timetable**, never "timetabled". Board-period changes
+and summer service are not known in advance, so a projected wait can be wrong
+by however much those change. Rebuilding after TTC's next release replaces
+projected dates with published ones. `python tools/project_schedule.py --years N`
+redoes only the projection.
+
 No API key, no billing account. OpenStreetMap tiles in the browser; every
 travel time is computed locally against TTC's own open timetable and live feed.
 
@@ -87,7 +100,7 @@ to average headways as though no timetable had ever been built.
 pytest -q
 ```
 
-239 tests, 100% of 1,060 statements — and that figure is itself checked, because
+255 tests, 100% of 1,072 statements — and that figure is itself checked, because
 it had already gone stale once. The suite never touches the network: the
 realtime tests run against recorded feeds, one containing a real Line 2 closure.
 

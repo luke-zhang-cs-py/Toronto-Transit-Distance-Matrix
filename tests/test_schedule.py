@@ -226,14 +226,62 @@ def test_covers_is_true_across_the_whole_covered_range():
 
 
 def test_covers_is_false_outside_it():
-    """Both ends: before the feed starts and after it expires."""
+    """Both ends: before the feed starts, and after it expires -- which,
+    with a projection in the index, is after the projection ends."""
     if not schedule.available():
         pytest.skip("no schedule index")
     dates = schedule.covered_dates()
     first = dt.datetime.strptime(dates[0], "%Y%m%d").date()
     last = dt.datetime.strptime(dates[-1], "%Y%m%d").date()
     assert schedule.covers(first - dt.timedelta(days=1)) is False
-    assert schedule.covers(last + dt.timedelta(days=1)) is False
+    through = (schedule.load().get("projection") or {}).get("through")
+    end = dt.date.fromisoformat(through) if through else last
+    assert schedule.covers(end + dt.timedelta(days=1)) is False
+    if through:
+        assert schedule.covers(last + dt.timedelta(days=1)) is True
+        assert schedule.is_projected(last + dt.timedelta(days=1)) is True
+        assert schedule.is_projected(last) is False
+
+
+# ------------------------------------------------------- the projection
+
+def _index(tmp_path, body):
+    path = tmp_path / "index.json"
+    path.write_text(json.dumps(body), encoding="utf-8")
+    assert schedule.load(str(path)) is not None
+
+
+def test_a_published_date_is_never_read_from_the_projection(tmp_path):
+    """Published dates win even if a projection also lists one (a projection
+    made before a newer feed was merged in, say)."""
+    _index(tmp_path, {"services": {"20261030": ["1"]},
+                      "projected": {"20261030": ["9"], "20261101": ["3"]},
+                      "departures": {}})
+    assert schedule.services_on(dt.date(2026, 10, 30)) == ["1"]
+    assert schedule.is_projected(dt.date(2026, 10, 30)) is False
+    assert schedule.services_on(dt.date(2026, 11, 1)) == ["3"]
+    assert schedule.is_projected(dt.datetime(2026, 11, 1, 8, 0)) is True
+    assert schedule.is_projected(dt.date(2026, 11, 2)) is False   # in neither
+
+
+def test_an_index_without_a_projection_is_as_before(tmp_path):
+    _index(tmp_path, {"services": {"20261030": ["1"]}, "departures": {}})
+    assert schedule.services_on(dt.date(2026, 11, 1)) == []
+    assert schedule.is_projected(dt.date(2026, 11, 1)) is False
+    assert schedule.coverage()["projectedThrough"] is None
+
+
+def test_is_projected_without_any_index(tmp_path):
+    assert schedule.load(str(tmp_path / "nope.json")) is None
+    assert schedule.is_projected(dt.date(2027, 1, 1)) is False
+
+
+def test_coverage_says_how_far_the_projection_runs(tmp_path):
+    _index(tmp_path, {"services": {"20261030": ["1"]}, "projected": {"20261101": ["3"]},
+                      "projection": {"through": "2030-10-31"}, "departures": {}})
+    report = schedule.coverage()
+    assert report["lastDate"] == "20261030", "the published range, not the projection"
+    assert report["projectedThrough"] == "2030-10-31"
 
 
 def test_covers_agrees_with_services_on():

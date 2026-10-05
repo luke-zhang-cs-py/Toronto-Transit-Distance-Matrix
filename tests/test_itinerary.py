@@ -363,21 +363,51 @@ def test_a_trip_says_whether_it_was_planned_live(static):
 def test_a_departure_past_the_board_period_does_not_claim_a_timetable(static):
     """The index is a board period, not a permanent fact.
 
-    Past its last covered date every wait falls back to the modelled figure.
-    The flag used to be computed from the file's presence, so it still said
-    "timetabled" -- the page showed a precision it did not have, and nothing
-    hinted that the index wanted rebuilding.
+    Past its last covered date -- and past the projection, if there is one --
+    every wait falls back to the modelled figure. The flag used to be
+    computed from the file's presence, so it still said "timetabled" -- the
+    page showed a precision it did not have, and nothing hinted that the
+    index wanted rebuilding.
     """
     covered = schedule.covered_dates()
     last = dt.datetime.strptime(covered[-1], "%Y%m%d").date()
-    beyond = dt.datetime.combine(last + dt.timedelta(days=7), dt.time(17, 20))
+    through = (schedule.load().get("projection") or {}).get("through")
+    end = dt.date.fromisoformat(through) if through else last
+    beyond = dt.datetime.combine(end + dt.timedelta(days=7), dt.time(17, 20))
 
     plan = itinerary.plan(UNION, FINCH, depart_at=beyond, conditions=static)
     assert plan["scheduleAvailable"] is False, "claimed a timetable it lacks"
+    assert plan["scheduleProjected"] is False
     assert plan["scheduleIndexBuilt"] is True, "the file is still there"
 
     ride = transit_option(plan)
     assert {leg["source"] for leg in legs_of(ride, "wait")} == {"modelled"}
+
+
+@pytest.mark.skipif(not (schedule.available() and (schedule.load() or {}).get("projection")),
+                    reason="no projected schedule index")
+def test_a_departure_in_the_projection_says_projected_not_timetabled(static):
+    """Past TTC's published dates the waits come off the latest week repeated.
+    That has a timetable's precision and none of its authority, so every
+    leg and the plan say "projected" -- never "timetable"."""
+    last = dt.datetime.strptime(schedule.covered_dates()[-1], "%Y%m%d").date()
+    # A Wednesday in the second year, nowhere near a holiday.
+    day = dt.date(last.year + 1, 3, 1)
+    day += dt.timedelta(days=(2 - day.weekday()) % 7)
+    plan = itinerary.plan(UNION, FINCH, depart_at=dt.datetime.combine(day, dt.time(17, 20)),
+                          conditions=static)
+    assert plan["scheduleAvailable"] is True
+    assert plan["scheduleProjected"] is True
+    sources = {leg["source"] for leg in legs_of(transit_option(plan), "wait")}
+    assert "projected" in sources and "timetable" not in sources, sources
+
+
+@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
+def test_a_published_day_is_not_called_projected(static):
+    first = dt.datetime.strptime(schedule.covered_dates()[0], "%Y%m%d").date()
+    plan = itinerary.plan(UNION, FINCH, depart_at=dt.datetime.combine(first, dt.time(17, 20)),
+                          conditions=static)
+    assert plan["scheduleProjected"] is False
 
 
 @pytest.mark.skipif(not schedule.available(), reason="no schedule index")

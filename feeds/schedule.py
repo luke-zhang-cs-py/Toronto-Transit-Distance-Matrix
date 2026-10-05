@@ -160,11 +160,32 @@ def built_at():
 # Service days
 # ---------------------------------------------------------------------------
 def services_on(date):
-    """The service ids running on a calendar date."""
+    """The service ids running on a calendar date.
+
+    Published dates first. Past the feed's last date, the projection that
+    tools/project_schedule.py adds -- the latest published week repeated,
+    holidays on the holiday service -- answers instead, and `is_projected`
+    says so. A date the feed publishes is never read from the projection.
+    """
     index = load()
     if not index:
         return []
-    return index.get("services", {}).get(date.strftime("%Y%m%d"), [])
+    key = date.strftime("%Y%m%d")
+    published = index.get("services", {})
+    if key in published:
+        return published[key]
+    return index.get("projected", {}).get(key, [])
+
+
+def is_projected(on):
+    """Is this date's timetable a projection rather than TTC's published one."""
+    if isinstance(on, dt.datetime):
+        on = on.date()
+    index = load()
+    if not index:
+        return False
+    key = on.strftime("%Y%m%d")
+    return key not in index.get("services", {}) and key in index.get("projected", {})
 
 
 def covered_dates():
@@ -297,5 +318,8 @@ def coverage():
         "departureTimes": total,
         "firstDate": dates[0] if dates else None,
         "lastDate": dates[-1] if dates else None,
+        # Past lastDate, waits are read off the projection: the same week
+        # repeated, not a timetable TTC has published.
+        "projectedThrough": (index.get("projection") or {}).get("through"),
         "unmatched": index.get("unmatched", []),
     }

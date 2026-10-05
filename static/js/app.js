@@ -320,6 +320,8 @@ function fmtMinSec(mins){
 function sourceTag(option){
   const s = option.waitSources || [];
   if(s.includes('timetable')) return '<span class="tag sched">timetabled</span>';
+  // Past TTC's published dates: the latest week repeated, not a published timetable.
+  if(s.includes('projected')) return '<span class="tag est">projected timetable</span>';
   if(s.includes('headway')) return '<span class="tag live">live headway</span>';
   if(s.includes('modelled')) return '<span class="tag est">estimated</span>';
   return '';
@@ -415,6 +417,7 @@ function renderItinerary(route){
        * assumed from an average headway are different claims, and showing
        * them identically would hide which one you are trusting. */
       const how = leg.source === 'timetable' ? '<span class="tag sched">timetabled</span>'
+                : leg.source === 'projected' ? '<span class="tag est">projected timetable</span>'
                 : leg.source === 'headway' ? '<span class="tag live">live headway</span>'
                 : '<span class="tag est">estimated</span>';
       return `<li class="waitStep"><div>${when}Wait for ${badge(leg.line)}

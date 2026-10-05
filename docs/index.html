@@ -373,8 +373,8 @@ footer a { color: inherit; }
 
 var MODULES = [
   { name: 'feeds/realtime.py',     lines: 601, stmts: 248, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
-  { name: 'trips/itinerary.py',    lines: 583, stmts: 229, missed:  0, does: 'trips for a departure time, with clock times per leg' },
-  { name: 'feeds/schedule.py',     lines: 301, stmts: 125, missed:  0, does: 'when the next one actually leaves, from the index' },
+  { name: 'trips/itinerary.py',    lines: 586, stmts: 229, missed:  0, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'feeds/schedule.py',     lines: 325, stmts: 137, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                lines: 310, stmts: 124, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
   { name: 'trips/routing.py',      lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
   { name: 'network/regional.py',   lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
@@ -393,24 +393,25 @@ var MODULES = [
  * the omission is visible rather than silent: each streams the 207 MB GTFS
  * archive, so exercising them in the suite would mean shipping it. */
 var OMITTED = [
-  { name: 'tools/build_schedule.py', lines: 338, why: '207 MB of GTFS -> a departures index' },
+  { name: 'tools/build_schedule.py', lines: 351, why: '207 MB of GTFS -> a departures index' },
   { name: 'tools/build_buses.py',    lines: 474, why: 'the same archive -> network/bus_routes.json' }
 ];
 
 var TESTS = [
-  { file: 'test_itinerary.py',         n: 49, of: 'departure times, transfers, and the FIFO guarantee' },
+  { file: 'test_itinerary.py',         n: 51, of: 'departure times, transfers, and the FIFO guarantee' },
   { file: 'test_transit.py',           n: 43, of: 'the graph, the routing, and the HTTP surface' },
   { file: 'test_realtime.py',          n: 38, of: 'two recorded feeds, one with a real Line 2 closure' },
   { file: 'test_geo_gtfs.py',          n: 25, of: 'the two helpers both build tools used to duplicate' },
+  { file: 'test_schedule.py',          n: 23, of: 'the index, the board period, and life without one' },
   { file: 'test_realtime_degraded.py', n: 22, of: 'the live feed when it is slow, absent, corrupt, or unparseable' },
-  { file: 'test_schedule.py',          n: 19, of: 'the index, the board period, and life without one' },
   { file: 'test_degraded.py',          n: 15, of: 'what it does when the data it wants is not there' },
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' },
   { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' },
+  { file: 'test_project_schedule.py',  n: 10, of: 'four years past the feed: the week repeated, the holidays on holiday service' },
   { file: 'test_static_build.py',      n:  6, of: 'the browser build: current, escaped, agreeing with the Python; page races' }
 ];
 
-var TEST_LINES = 3219;
+var TEST_LINES = 3423;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so

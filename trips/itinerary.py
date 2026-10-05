@@ -146,7 +146,9 @@ def _wait_for(node_id, line, moment, conditions):
     """
     timetabled = schedule.wait_minutes(node_id, line, moment)
     if timetabled is not None:
-        return timetabled, "timetable"
+        # Past TTC's published dates the same lookup reads the projection,
+        # which is a guess with a timetable's precision: it says so.
+        return timetabled, "projected" if schedule.is_projected(moment) else "timetable"
 
     # The mode has to be the *line's*, not the boarding node's: `nodes[node_id]
     # ["mode"]` is whichever agency's module created this node first (e.g.
@@ -540,6 +542,7 @@ def plan(origin, destination, depart_at=None, conditions=None,
         # reporting availability from the file's presence told the page it had
         # timetabled precision while it did not.
         "scheduleAvailable": schedule.covers(depart_at),
+        "scheduleProjected": schedule.is_projected(depart_at),
         "scheduleIndexBuilt": schedule.available(),
         "live": conditions.live,
     }
