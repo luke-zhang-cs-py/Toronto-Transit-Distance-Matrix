@@ -11,7 +11,7 @@ venv/
 htmlcov/
 .pytest_cache/
 
-# Built from TTC static GTFS by tools_build_schedule.py. Derived data, ~0.6 MB,
+# Built from TTC static GTFS by tools/build_schedule.py. Derived data, ~0.6 MB,
 # and it goes stale when the board period changes -- rebuild rather than pull.
 schedule_index.json
 _gtfs.zip

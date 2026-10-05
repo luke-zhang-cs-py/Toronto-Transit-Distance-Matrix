@@ -128,3 +128,104 @@ def test_every_name_the_page_writes_as_html_is_escaped():
     assert interpolated, "no name interpolation found, so this check is vacuous"
     raw = [expr for expr in interpolated if not expr.startswith("esc(")]
     assert not raw, "names interpolated into markup unescaped: %r" % raw
+
+
+# Just enough browser for the page scripts to load in Node: every element is
+# a record of what was written to it and which listeners it was given, and
+# everything else (Leaflet, the map) accepts any call and returns more of
+# itself. fetch() is held open until the test answers it, in whatever order.
+PAGE_STUBS = r"""
+const anything = () => new Proxy(function () {}, {
+  get: (t, k) => k === Symbol.toPrimitive ? () => '' : k === 'then' ? undefined : anything(),
+  apply: () => anything(),
+  set: () => true,
+});
+const elements = {};
+function element(id) {
+  if (elements[id]) return elements[id];
+  const store = { id, on: {}, innerHTML: '', textContent: '', title: '', style: {}, value: '' };
+  return elements[id] = new Proxy(store, {
+    get: (t, k) => k in t ? t[k]
+      : k === 'addEventListener' ? (type, fn) => { t.on[type] = fn; } : anything(),
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+}
+globalThis.window = globalThis;
+globalThis.document = { getElementById: element, querySelector: () => null,
+                        querySelectorAll: () => [], documentElement: {} };
+globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+globalThis.L = anything();
+globalThis.setInterval = () => 0;
+const pending = [];
+globalThis.fetch = (url, opts) => new Promise((resolve, reject) =>
+  pending.push({ url, resolve, reject }));
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+"""
+
+
+def test_only_the_latest_trip_plan_is_drawn(tmp_path):
+    """Two /api/trips requests can be in flight at once -- the minute timer
+    replanning "leave now" while somebody picks a new destination -- and the
+    older answer, arriving second, replaced the trip just asked for. "New
+    trip" left `lastTrip` set, so the timer kept replanning the old trip and
+    drew its route over the map while the next origin was being chosen. And
+    a request that failed outright was an unhandled rejection that left the
+    previous trip's options on screen."""
+    source = read(os.path.join(ROOT, "static", "js", "app.js"))
+    probe = PAGE_STUBS + source + r"""
+const option = (arrive) => ({ departAt: '17:00:00', arriveAt: arrive, totalMinutes: 30,
+  lines: ['Line 1'], transfers: 0, legs: [], laterDepartures: [], waitSources: [] });
+const answer = (request, options) =>
+  request.resolve({ ok: true, json: async () => ({ options, live: false }) });
+const trips = () => pending.filter((p) => p.url === '/api/trips');
+(async () => {
+  const out = {};
+  lastTrip = { olat: 43.6, olon: -79.4, dlat: 43.7, dlon: -79.4 };
+  const first = planTrip();
+  lastTrip = { olat: 43.6, olon: -79.4, dlat: 43.8, dlon: -79.3 };
+  const second = planTrip();
+  answer(trips()[1], [option('17:30:00')]);
+  await second;
+  answer(trips()[0], [option('18:45:00')]);
+  await first;
+  out.shown = tripOptions.map((o) => o.arriveAt);
+
+  element('newTripBtn').on.click();
+  out.tripAfterNewTrip = lastTrip;
+
+  lastTrip = { olat: 43.6, olon: -79.4, dlat: 43.7, dlon: -79.4 };
+  const failing = planTrip();
+  trips()[2].reject(new TypeError('Failed to fetch'));
+  await failing;
+  out.optionsAfterFailure = tripOptions.length;
+  out.noteAfterFailure = element('optionList').innerHTML;
+  console.log(JSON.stringify(out));
+})();
+"""
+    out = run_node(tmp_path, probe)
+    assert out["shown"] == ["17:30:00"], "the older answer replaced the newer"
+    assert out["tripAfterNewTrip"] is None, "the minute timer would replan it"
+    assert out["optionsAfterFailure"] == 0
+    assert "did not answer" in out["noteAfterFailure"]
+
+
+def test_a_working_compass_does_not_ask_to_be_recalibrated(tmp_path):
+    """Android Chrome fires deviceorientationabsolute and, beside it, a
+    relative deviceorientation. The relative one replaced the location note
+    with "recalibrate the magnetometer" many times a second, on a compass
+    whose absolute bearing was arriving fine."""
+    source = read(os.path.join(ROOT, "static", "js", "here.js"))
+    probe = PAGE_STUBS + source + r"""
+hereHint('Located to 5 m.');
+onOrientation({ absolute: true, alpha: 90 });
+onOrientation({ absolute: false, alpha: 10 });
+const afterBoth = element('hereHint').innerHTML;
+compassLive = false;
+onOrientation({ absolute: false, alpha: 10 });
+console.log(JSON.stringify({ afterBoth, live: compassLive,
+                             relativeOnly: element('hereHint').innerHTML }));
+"""
+    out = run_node(tmp_path, probe)
+    assert out["afterBoth"] == "Located to 5 m."
+    assert "relative angle" in out["relativeOnly"], (
+        "with no true bearing at all the advice is still owed")

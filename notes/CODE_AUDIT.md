@@ -1,7 +1,110 @@
 # Code audit
 
-*The sections below the first rule are the 160-test pass, kept as it was.
-The most recent pass is [at the end](#27-september-2026-235-tests-100).*
+*The newest pass is the first section below. After it come the 160-test
+pass, kept as it was, and the [27 September pass](#27-september-2026-235-tests-100)
+at the end.*
+
+## 5 October 2026: 239 tests, 100% of statements
+
+Baseline: 235 passed, flake8's real-error set (`E9,F63,F7,F82` plus
+`F401,F811,F841`) clean, 1,055 statements none missed, 304 branches with 3
+partial. After: 239 passed, flake8 clean, 1,060 statements none missed, the
+same 3 partial branches. Every fix below has a test that was run against the
+unfixed code and failed there.
+
+### Bugs fixed
+
+| # | Class | What was wrong | Test |
+|---|---|---|---|
+| 1 | Functional / integration | `realtime._feed` fell back to the last good parse with no age limit. With the feed down all afternoon, a morning closure kept routing people around a line that had reopened, headways were from another hour, and `/api/live` and every trip still said `live: true`. Now the fallback stands for `LAST_GOOD_MAX_AGE_SECONDS` (10 minutes); after that the answer is the static model, labelled as such. This was in the 27 September "left alone" list. | `test_a_last_good_reading_too_old_to_trust_is_dropped`, `test_a_last_good_reading_with_no_time_is_not_trusted` |
+| 2 | Workflow (race) | `planTrip` drew whichever `/api/trips` answer arrived last. The minute timer in `when.js` replans "leave now", so picking a new destination while a replan was in flight could put the old trip back over the new one. Requests are numbered and only the latest is drawn. | `test_only_the_latest_trip_plan_is_drawn` |
+| 3 | Workflow | "New trip" and choosing a new origin left `lastTrip` set, so the minute timer kept replanning the finished trip and drew its route on the map while the next origin was being chosen. `forgetTrip()` clears it and drops anything in flight. | same test |
+| 4 | Runtime | A `/api/trips` request that failed outright (offline, or an HTML error page that is not JSON) was an unhandled rejection, and the previous trip's options and route stayed on screen. It now clears them and says the planner did not answer; a reply with no options still says "No trip found". | same test |
+| 5 | Functional | `here.js`: Android Chrome fires `deviceorientationabsolute` and a relative `deviceorientation` beside it. The relative one replaced the location note with "recalibrate the magnetometer" many times a second on a compass that was working. The advice now only shows while no true bearing has arrived. | `test_a_working_compass_does_not_ask_to_be_recalibrated` |
+
+The page tests load the real `static/js/app.js` and `here.js` in Node behind a
+small stub of the DOM and Leaflet (`PAGE_STUBS` in `tests/test_static_build.py`),
+with `fetch` held open so answers can be delivered out of order. `docs/app/` was
+rebuilt with `python tools/build_static.py`, and `tools/refresh_figures.py`
+updated the published counts.
+
+### Checklist
+
+- **Dispensables.** Fixed: `network/buses.py` had `BUS_WAIT_MIN = 7`, read by
+  nothing, beside the `WAIT_BY_MODE["bus"] = 7` that is actually used, with a
+  comment calling it the fallback; it also re-exported an unused `chain`
+  import. `.coveragerc` still omitted `tools_build_schedule.py` and
+  `tools_build_buses.py`, names that stopped existing when the tools moved
+  into `tools/` (`tools/*` already covers them), and `.gitignore` named the
+  old path. A typo in `gtfs.fetch`'s docstring. Nothing else stale in the
+  comments read.
+- **Bloaters.** Left: `itinerary._search` and `_to_legs` (about 80 lines
+  each), `schedule.departures_after` and `tools/build_buses._stitch_islands`
+  stay over complexity 10, as before, and `realtime._feed` reaches 11 with
+  the age check (radon: C). Each
+  is one algorithm read top to bottom. `static/js/app.js` is a 500-line global
+  script by design (no build step for the Flask page).
+- **Abusers.** Left: `lineColor` in `app.js` is an `if` chain over line-name
+  prefixes; a table would read the same and is a matter of taste.
+- **Couplers, change preventers.** Nothing new. The page scripts share state
+  through globals (`lastTrip`, `tripOptions`), and `when.js` reaches into
+  `app.js`'s `planTrip` and `lastTrip`; `forgetTrip()` is now the one place a
+  trip ends.
+- **Global data, magic numbers, naming.** The new age limit is a named
+  constant with its reason. `app._count` accepts `true` as 1 and `2.7` as 2;
+  left, since nothing sends those.
+- **Security.** Every `innerHTML` in the page scripts goes through `esc()` or
+  is a constant; the stop-name check from 27 September still holds. `app.py`
+  runs Werkzeug with `debug=True`, which includes the interactive debugger:
+  acceptable only because `app.run` binds to 127.0.0.1 and the README says the
+  app runs on your own machine; never run it with `host="0.0.0.0"` as is. No
+  secrets or personal data in tracked files.
+
+### Coverage
+
+`python -m coverage run --branch -m pytest` then `coverage report -m`, Python
+3.14.6.
+
+| module | statements | branches | before | after |
+|---|---|---|---|---|
+| `feeds/realtime.py` | 242 -> 248 | 72 | 100% lines, 1 partial (`_alert_text`'s empty-translation skip) | 100% lines, the same partial |
+| `trips/itinerary.py` | 229 | 78 | 100%, 1 partial | unchanged |
+| `trips/routing.py` | 99 | 38 | 100%, 1 partial (`_charge_boarding_wait` with no ride) | unchanged |
+| `network/buses.py` | 32 -> 31 | 12 | 100% | 100% |
+| `app.py`, `feeds/gtfs.py`, `feeds/schedule.py`, `network/*`, `trips/geo.py` | 453 | 104 | 100% | 100% |
+| **total** | **1,055 -> 1,060** | **304** | **100% lines, 99% with branches** | **same** |
+
+The browser code has no line measurement. What runs under test: the static
+build's Dijkstra port against the Python (`static-reach.js`), `when.js`'s
+Toronto clock, and now `app.js` loading, `planTrip`, `forgetTrip` and the "New
+trip" handler, and `here.js`'s orientation handling. Not exercised: map
+drawing, the option list and itinerary markup, the heat radar, geolocation
+fixes, and `docs/app`'s `static-api.js` / `static-ui.js`.
+
+### Maintenance
+
+- **Corrective:** bugs 1 to 5, the stale `.coveragerc` and `.gitignore` names.
+- **Adaptive:** the local `schedule_index.json` covers 6 September to 31
+  October 2026 (the board period). From 1 November every wait falls back to
+  headways or the model until `python tools/build_schedule.py` is run against
+  the new GTFS; `scheduleAvailable` already reports this per date. CI's
+  `actions/checkout@v5` and `setup-python@v6` are current. The published
+  statement counts are measured with 3.14 and CI runs 3.10 and 3.12, which the
+  figures test already allows for.
+- **Perfective:** a failed trip request says so instead of leaving the last
+  trip on screen; the compass note stops flickering on Android.
+- **Preventive:** the page-script stub makes the front end's request handling
+  testable from the existing suite; the age limit stops a dead feed from
+  posing as a live one.
+
+### Left for later
+
+- `snapshot()["ageSeconds"]` is the age of the last refresh, not of the data
+  in it; within the 10-minute window a fallback reading still looks fresh
+  there. `feedTimestamp` tells the truth.
+- `setOrigin` has the same shape as bug 2 for `/api/reach`: two quick clicks
+  can paint the first origin's times. Rarer (no timer drives it); not fixed.
+- `_later_departures` and the three partial branches, as noted on 27 September.
 
 Static analysis (flake8, radon), a 160-test suite, and a coverage report.
 

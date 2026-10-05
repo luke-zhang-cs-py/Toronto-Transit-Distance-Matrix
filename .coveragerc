@@ -2,13 +2,12 @@
 omit =
     tests/*
     # Developer scripts, not shipped code. tools/refresh_figures.py keeps
-    # the published figures true and is run by hand.
+    # the published figures true and is run by hand. tools/build_schedule.py
+    # and tools/build_buses.py stream a 207 MB GTFS archive; exercising them
+    # in the suite would mean shipping the archive. (This list also named
+    # them by their old root-level names, tools_build_*.py, which match
+    # nothing since the move into tools/.)
     tools/*
-    # A one-shot build tool: it streams a 207 MB GTFS archive and writes
-    # an index. Exercising it in the suite would mean shipping the archive.
-    tools_build_schedule.py
-    # Same: streams the GTFS archive and writes network/bus_routes.json.
-    tools_build_buses.py
 
 [report]
 exclude_lines =

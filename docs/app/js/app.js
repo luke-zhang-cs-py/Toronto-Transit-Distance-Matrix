@@ -172,6 +172,7 @@ async function setOrigin(lat, lon){
   document.getElementById('modeflagText').textContent = 'Click again to set a destination';
   document.getElementById('tripCard').style.display='none';
   document.getElementById('filterCard').style.display='block';
+  forgetTrip();
   routeLayer.clearLayers();
   if(destMarker){ map.removeLayer(destMarker); destMarker=null; }
   originLatLng = {lat, lon};
@@ -219,17 +220,43 @@ let lastTrip = null;
 let tripOptions = [];
 let chosenOption = 0;
 
+/* Only the latest request is drawn. Two can be in flight at once -- the
+ * minute timer in when.js replanning "leave now" while somebody picks a new
+ * destination -- and the older answer, arriving second, drew the trip they
+ * had just left. */
+let tripRequest = 0;
+
+/* The trip is over. Nothing still in flight may draw it, and the minute
+ * timer, which replans whenever lastTrip is set, must stop replanning it:
+ * it used to put the old route back on the map while the next origin was
+ * being chosen. */
+function forgetTrip(){
+  lastTrip = null;
+  tripRequest++;
+}
+
 async function planTrip(){
   if(!lastTrip) return;
+  const asked = ++tripRequest;
   /* when.js owns this: "now" or a time to the second. */
   const departAt = typeof departValue === 'function' ? departValue() : 'now';
-  const res = await fetch('/api/trips', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({...lastTrip, departAt, alternatives: 3})});
-  const plan = await res.json();
-  if(!res.ok || !plan.options || !plan.options.length){
+  let res = null, plan = null;
+  try{
+    res = await fetch('/api/trips', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({...lastTrip, departAt, alternatives: 3})});
+    plan = await res.json();
+  }catch(e){ plan = null; }   /* offline, or a server error page that is not JSON */
+  if(asked !== tripRequest) return;
+  if(!res || !res.ok || !plan || !plan.options || !plan.options.length){
+    /* The last trip's options and route go too: a "no trip" note above the
+     * previous answer's itinerary reads as that itinerary being the answer. */
+    tripOptions = [];
+    routeLayer.clearLayers();
+    renderItinerary(null);
     document.getElementById('optionList').innerHTML =
       `<div class="cc-note" style="font-size:12px;color:#8fa3ad;">`
-      + `No trip found for that time.</div>`;
+      + (plan ? `No trip found for that time.` : `The trip planner did not answer. Try again.`)
+      + `</div>`;
     return;
   }
   tripOptions = plan.options;
@@ -419,6 +446,7 @@ document.getElementById('newTripBtn').addEventListener('click', ()=>{
   document.getElementById('filterCard').style.display='block';
   document.getElementById('modeflagText').textContent = 'Click the map to set a start point';
   stage='origin';
+  forgetTrip();
   routeLayer.clearLayers();
   if(destMarker){ map.removeLayer(destMarker); destMarker=null; }
   Object.values(nodeMarkers).forEach(m=>m.setStyle({opacity:1}));

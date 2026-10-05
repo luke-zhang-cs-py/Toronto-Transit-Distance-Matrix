@@ -20,17 +20,17 @@ import json
 import logging
 import os
 
-from .graph import add_edge, add_node, chain
+from .graph import add_edge, add_node
 
 log = logging.getLogger(__name__)
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bus_routes.json")
 
-# Buses run less often than the subway and are less punctual, so the wait is
-# longer. This is the modelled fallback only -- routes named "<number> <name>"
-# pick up live headways and timetabled departures automatically, which is why
-# build_buses names them that way.
-BUS_WAIT_MIN = 7
+# The modelled bus wait is WAIT_BY_MODE["bus"] in graph.py. A BUS_WAIT_MIN
+# here said the same 7 minutes and was read by nothing, so a change to one
+# would have left the other quietly wrong. Routes named "<number> <name>"
+# pick up live headways and timetabled departures in place of that figure,
+# which is why build_buses names them that way.
 
 
 def load(path=DATA):
@@ -69,4 +69,4 @@ def load(path=DATA):
     return added
 
 
-__all__ = ["load", "chain", "BUS_WAIT_MIN"]
+__all__ = ["load"]

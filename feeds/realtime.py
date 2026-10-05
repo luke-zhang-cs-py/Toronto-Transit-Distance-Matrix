@@ -72,6 +72,13 @@ ALERTS_TTL_SECONDS = 60.0
 # snapshot, or the static model.
 FETCH_TIMEOUT_SECONDS = 8.0
 
+# How long the last good parse stands in for a feed that has stopped
+# answering. A few missed refreshes are a hiccup and the last reading is
+# still the best answer; past this it describes an earlier network -- a
+# closure that has since lifted, headways from another hour -- and the
+# static model, which says it is static, is the more honest answer.
+LAST_GOOD_MAX_AGE_SECONDS = 10 * 60.0
+
 # Bounds on a measured wait. One vehicle seen twenty minutes apart is not
 # evidence of a twenty-minute headway, and a burst of three in a minute is not
 # a thirty-second one.
@@ -115,6 +122,7 @@ def no_disruptions():
 _lock = threading.Lock()
 _cache = {}          # kind -> {"at": float, "parsed": FeedMessage|None}
 _last_good = {}      # kind -> parsed result, kept so a failed fetch is not a cliff
+_last_good_at = {}   # kind -> time.monotonic() of that parse
 
 # The derived numbers the router actually reads: headways and disruptions,
 # already computed. Kept separately from the parsed feed because deriving
@@ -189,11 +197,16 @@ def _feed(kind):
 
     with _lock:
         # Cache the attempt either way, so a feed that is down is not retried
-        # on every single request -- but keep the last parse that worked.
-        _cache[kind] = {"at": now, "parsed": parsed or _last_good.get(kind)}
+        # on every single request -- but keep the last parse that worked, for
+        # as long as it is recent enough to describe the network.
         if parsed is not None:
             _last_good[kind] = parsed
-    return _cache[kind]["parsed"]
+            _last_good_at[kind] = now
+        good_at = _last_good_at.get(kind)
+        recent = good_at is not None and now - good_at <= LAST_GOOD_MAX_AGE_SECONDS
+        _cache[kind] = {"at": now,
+                        "parsed": parsed or (_last_good.get(kind) if recent else None)}
+        return _cache[kind]["parsed"]
 
 
 # ---------------------------------------------------------------------------
@@ -583,5 +596,6 @@ def reset_cache():
     with _lock:
         _cache.clear()
         _last_good.clear()
+        _last_good_at.clear()
         _derived.update(headways={}, live=False, at=0.0, feedTimestamp=None,
                         disrupted=no_disruptions())

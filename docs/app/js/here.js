@@ -193,10 +193,16 @@ function onOrientation(e) {
     /* A relative alpha is not a bearing. Rotating the needle by it would
        move convincingly and point nowhere in particular, which is worse
        than not moving. */
-    if (!compassLive) holdNorthUp('relative only');
-    if (typeof e.alpha === 'number') {
-      calibrationHint('<b>The compass is reporting a relative angle rather ' +
-                      'than a true bearing.</b>');
+    /* Only while no true bearing has arrived. Android Chrome fires both
+       events, the absolute one and a relative one beside it, and the
+       relative one replaced the location note with recalibration advice
+       many times a second on a compass that was working. */
+    if (!compassLive) {
+      holdNorthUp('relative only');
+      if (typeof e.alpha === 'number') {
+        calibrationHint('<b>The compass is reporting a relative angle rather ' +
+                        'than a true bearing.</b>');
+      }
     }
     return;
   }

@@ -51,7 +51,7 @@ def fetch(url=ARCHIVE_URL, dest=None, timeout=400):
     machine without that proxy the first branch is the one that runs. Same
     reasoning as realtime._fetch.
 
-    `dest` has no real default -- there is nowhere sensible to write an
+    `dest` has no real default -- there is nowhere sensible to write a
     36 MB archive without being told -- so it stays keyword-optional only to
     let `url` be positional, and is checked here rather than left to fail as
     a bare `open(None, "wb")` TypeError two lines down, which says nothing

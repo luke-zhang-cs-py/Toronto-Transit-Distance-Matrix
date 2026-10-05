@@ -81,6 +81,7 @@ def clean_module_state():
     realtime.reset() if hasattr(realtime, "reset") else None
     realtime._cache.clear()
     realtime._last_good.clear()
+    realtime._last_good_at.clear()
     yield
     realtime.stop_refresh()
     if realtime._refresher is not None:
@@ -89,6 +90,7 @@ def clean_module_state():
     realtime._stop.clear()
     realtime._cache.clear()
     realtime._last_good.clear()
+    realtime._last_good_at.clear()
 
 
 # ------------------------------------------------------------- fetching
@@ -192,9 +194,35 @@ def test_a_failed_fetch_keeps_the_last_good_reading(monkeypatch):
     """A feed that goes down should degrade, not fall off a cliff: the last
     parse that worked is still the best available answer."""
     monkeypatch.setattr(realtime, "_fetch", lambda url, timeout=None: None)
-    realtime._last_good["trips"] = "yesterday's feed"
+    realtime._last_good["trips"] = "a minute-old feed"
+    realtime._last_good_at["trips"] = time.monotonic() - 60
 
-    assert realtime._feed("trips") == "yesterday's feed"
+    assert realtime._feed("trips") == "a minute-old feed"
+
+
+def test_a_last_good_reading_too_old_to_trust_is_dropped(monkeypatch):
+    """The fallback used to have no age limit. With the feed down all
+    afternoon, a closure from the morning kept routing people around a line
+    that had reopened, and /api/live still said "live". Past
+    LAST_GOOD_MAX_AGE_SECONDS the answer is the static model, which says
+    what it is."""
+    monkeypatch.setattr(realtime, "_fetch", lambda url, timeout=None: None)
+    realtime._last_good["trips"] = "this morning's feed"
+    realtime._last_good_at["trips"] = (time.monotonic()
+                                       - realtime.LAST_GOOD_MAX_AGE_SECONDS - 1)
+
+    assert realtime._feed("trips") is None
+    assert realtime._feed("alerts") is None
+    assert realtime.refresh() is False
+    assert realtime.snapshot()["live"] is False
+    realtime.reset_cache()
+
+
+def test_a_last_good_reading_with_no_time_is_not_trusted(monkeypatch):
+    monkeypatch.setattr(realtime, "_fetch", lambda url, timeout=None: None)
+    realtime._last_good["trips"] = "a feed of unknown age"
+
+    assert realtime._feed("trips") is None
 
 
 def fake_bindings(monkeypatch, message_class):
@@ -238,6 +266,7 @@ def test_a_successful_parse_becomes_the_last_good_reading(monkeypatch):
     got = realtime._feed("trips")
     assert got is not None, "a good body should have parsed"
     assert realtime._last_good.get("trips") is got
+    assert realtime._last_good_at["trips"] <= time.monotonic()
 
 
 def test_a_missing_protobuf_library_stays_on_the_static_model(monkeypatch):
