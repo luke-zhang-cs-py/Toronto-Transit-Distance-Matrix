@@ -124,3 +124,21 @@ def test_the_command_writes_the_projection_into_the_index(tmp_path, monkeypatch,
     monkeypatch.setattr("sys.argv", ["project_schedule.py", "--index", str(path), "--years", "0"])
     with pytest.raises(SystemExit):
         ps.main()
+
+def test_christmas_on_a_sunday_is_observed_on_the_tuesday_after_boxing_day():
+    # 2033 (and 2022): Christmas Sunday, Boxing Day Monday, Christmas observed Tuesday.
+    got = ps.ontario_holidays(2033)
+    assert got[D(2033, 12, 25)] == "Christmas Day"
+    assert got[D(2033, 12, 26)] == "Boxing Day"
+    assert got[D(2033, 12, 27)] == "Christmas Day (observed)"
+    assert D(2033, 12, 28) not in got
+
+
+def test_a_saturday_holiday_on_saturday_service_does_not_become_the_holiday_service():
+    # Canada Day 2028 is a Saturday; it runs Saturday service, and the Monday after is
+    # observed on the holiday service. Only the Monday says which id is the holiday one.
+    index = _feed(D(2028, 6, 19), D(2028, 7, 16), holiday_on={D(2028, 7, 3)})
+    assert index["services"]["20280701"] == ["sat"]
+    assert ps.holiday_services(index["services"]) == ["hol"]
+    ps.project(index, years=1)
+    assert index["projected"]["20281225"] == ["hol"], "not Saturday and holiday service at once"

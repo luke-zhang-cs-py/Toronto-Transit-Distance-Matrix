@@ -4,6 +4,33 @@
 pass, kept as it was, and the [27 September pass](#27-september-2026-235-tests-100)
 at the end.*
 
+## 5 October 2026, evening: the four-year projection, 257 tests, 100%
+
+Scope: what changed after the morning pass. That is `tools/project_schedule.py`,
+the `projected` fallback in `feeds/schedule.py`, the "projected" wait source
+(`trips/itinerary.py`, `static/js/app.js`), the rebuild calling the projection,
+and the pinned CI runner.
+
+| Kind | Found | Fix | Test |
+|---|---|---|---|
+| Logical | Christmas on a Sunday was observed on Monday 26 December, which Boxing Day then overwrote, so Tuesday 27 never got holiday service. The first year this happens is 2033, but every rebuild moves the window four years forward. | Every actual holiday date is placed first, then the observances. | `test_christmas_on_a_sunday_is_observed_on_the_tuesday_after_boxing_day` |
+| Logical | The holiday service was learned from every holiday in the feed. A Saturday holiday on Saturday service (Canada Day 2028) would have put every projected holiday on Saturday and holiday service at once, which is twice the trains. | Learn it from weekday holidays only. | `test_a_saturday_holiday_on_saturday_service_does_not_become_the_holiday_service` |
+| Test gap | `.coveragerc` omitted all of `tools/`, so the new projection was outside the "100%" figure. | Only the scripts that stream the archive or are run by hand are omitted now. `project_schedule.py` is measured: 111 statements, 100%. | `refresh_figures.py` and `test_published_figures.py` |
+| Workflow (adaptive) | `ubuntu-latest` moves to Ubuntu 26 on 19 October. A 3.10 job was cancelled when no runner was found. | Pinned to `ubuntu-24.04`, `timeout-minutes: 15`, `fail-fast: false`. | CI on `f854b89`, both green |
+
+Both new tests fail on the code before the fix.
+
+**Left alone:** the projection repeats one week, so board-period changes and
+summer service are not modelled. That is by design and is labelled
+"projected timetable" wherever it is used. `feeds/schedule.py` reaches 90% from
+`test_schedule.py` and `test_project_schedule.py` alone, and 100% in the full
+suite.
+
+**Maintenance.** Corrective: the two holiday bugs. Adaptive: the pinned
+runner. Perfective: four years of timetabled waits, labelled. Preventive: the
+coverage gap closed, and the rebuild redoing the projection so it never
+lapses.
+
 ## 5 October 2026: 239 tests, 100% of statements
 
 Baseline: 235 passed, flake8's real-error set (`E9,F63,F7,F82` plus

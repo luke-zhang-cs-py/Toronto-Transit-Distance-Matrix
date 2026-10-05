@@ -100,7 +100,7 @@ to average headways as though no timetable had ever been built.
 pytest -q
 ```
 
-255 tests, 100% of 1,072 statements — and that figure is itself checked, because
+257 tests, 100% of 1,183 statements — and that figure is itself checked, because
 it had already gone stale once. The suite never touches the network: the
 realtime tests run against recorded feeds, one containing a real Line 2 closure.
 

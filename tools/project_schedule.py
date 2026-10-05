@@ -82,29 +82,31 @@ def ontario_holidays(year):
 
     Ontario's statutory holidays plus Civic Holiday, which TTC also runs on
     holiday service. A fixed-date holiday that falls on a weekend runs holiday
-    service on the day itself and on the weekday it is observed: Christmas on
-    a Saturday puts Boxing Day's observance on the Tuesday, after Christmas's
-    on the Monday.
+    service on the day itself and on the weekday it is observed, which is the
+    next weekday no other holiday has: Christmas on a Saturday is observed on
+    the Monday and Boxing Day on the Tuesday; Christmas on a Sunday, with
+    Boxing Day on the Monday, is observed on the Tuesday.
+
+    Every actual date is placed before any observance, so an observance can
+    see a holiday that comes after it in the year. Doing both in one pass let
+    Sunday's Christmas take Monday 26 December, which Boxing Day then wrote
+    over, and the Tuesday was never a holiday.
     """
     found = {}
-
-    def fixed(month, day, name):
-        actual = dt.date(year, month, day)
-        found[actual] = name
-        if actual.weekday() >= 5:
-            found[_observed(actual, set(found))] = name + " (observed)"
-
-    fixed(1, 1, "New Year's Day")
+    fixed = [(dt.date(year, 1, 1), "New Year's Day"), (dt.date(year, 7, 1), "Canada Day"),
+             (dt.date(year, 12, 25), "Christmas Day"), (dt.date(year, 12, 26), "Boxing Day")]
+    for day, name in fixed:
+        found[day] = name
     found[_nth_monday(year, 2, 3)] = "Family Day"
     found[easter(year) - 2 * DAY] = "Good Friday"
     may25 = dt.date(year, 5, 25)
     found[may25 - dt.timedelta(days=(may25.weekday() or 7))] = "Victoria Day"
-    fixed(7, 1, "Canada Day")
     found[_nth_monday(year, 8, 1)] = "Civic Holiday"
     found[_nth_monday(year, 9, 1)] = "Labour Day"
     found[_nth_monday(year, 10, 2)] = "Thanksgiving"
-    fixed(12, 25, "Christmas Day")
-    fixed(12, 26, "Boxing Day")
+    for day, name in fixed:
+        if day.weekday() >= 5:
+            found[_observed(day, set(found))] = name + " (observed)"
     return found
 
 
@@ -117,13 +119,19 @@ def holiday_services(services):
 
     Read from the feed rather than assumed: Labour Day and Thanksgiving in the
     current feed say which id is the holiday service. Falls back to the Sunday
-    ids if the feed covers no holiday at all.
+    ids if the feed covers no weekday holiday at all.
+
+    Weekday holidays only. A holiday on a Saturday can run the ordinary
+    Saturday service, and learning that id as "the holiday service" put every
+    projected holiday on Saturday and holiday service at once -- twice the
+    trains.
     """
     days = _dates(services)
     ids = set()
     for year in {d.year for d in days}:
         for holiday in ontario_holidays(year):
-            ids.update(services.get(holiday.strftime(STAMP), []))
+            if holiday.weekday() < 5:
+                ids.update(services.get(holiday.strftime(STAMP), []))
     if ids:
         return sorted(ids)
     sundays = [d for d in days if d.weekday() == 6]

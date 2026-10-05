@@ -7,7 +7,13 @@ omit =
     # in the suite would mean shipping the archive. (This list also named
     # them by their old root-level names, tools_build_*.py, which match
     # nothing since the move into tools/.)
-    tools/*
+    # tools/project_schedule.py is not in this list: it is pure, it decides
+    # what the router says about every date past the feed, and
+    # tests/test_project_schedule.py runs all of it.
+    tools/build_buses.py
+    tools/build_schedule.py
+    tools/build_static.py
+    tools/refresh_figures.py
 
 [report]
 exclude_lines =
