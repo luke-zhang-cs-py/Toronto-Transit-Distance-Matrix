@@ -96,9 +96,7 @@ def test_leaving_later_arrives_later(static):
 
 # ------------------------------------------------------------------- waits
 
-@pytest.mark.skipif(not schedule.available(),
-                    reason="no schedule index; run tools/build_schedule.py")
-def test_a_wait_comes_from_the_timetable(static):
+def test_a_wait_comes_from_the_timetable(static, timetable):
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
     waits = legs_of(transit_option(plan), "wait")
     assert waits, "boarding a train means waiting for it"
@@ -106,8 +104,7 @@ def test_a_wait_comes_from_the_timetable(static):
     dt.datetime.strptime(waits[0]["boardAt"], itinerary.CLOCK)
 
 
-@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
-def test_the_boarding_time_is_a_real_departure(static):
+def test_the_boarding_time_is_a_real_departure(static, timetable):
     """Not "about two minutes" -- the actual next train.
 
     compare=False because the fastest option overall may be a park-and-ride
@@ -327,8 +324,7 @@ def test_driving_is_slower_than_the_speed_limit_on_purpose():
     assert itinerary.drive_minutes(10) > 10 / 50 * 60
 
 
-@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
-def test_later_departures_are_offered_for_the_same_routing(static):
+def test_later_departures_are_offered_for_the_same_routing(static, timetable):
     """What somebody actually wants when deciding whether to hurry."""
     plan = itinerary.plan(UNION, FINCH, depart_at=at(17, 20), conditions=static)
     ride = transit_option(plan)
@@ -359,8 +355,7 @@ def test_a_trip_says_whether_it_was_planned_live(static):
     assert plan["scheduleIndexBuilt"] == schedule.available()
 
 
-@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
-def test_a_departure_past_the_board_period_does_not_claim_a_timetable(static):
+def test_a_departure_past_the_board_period_does_not_claim_a_timetable(static, timetable):
     """The index is a board period, not a permanent fact.
 
     Past its last covered date -- and past the projection, if there is one --
@@ -384,9 +379,7 @@ def test_a_departure_past_the_board_period_does_not_claim_a_timetable(static):
     assert {leg["source"] for leg in legs_of(ride, "wait")} == {"modelled"}
 
 
-@pytest.mark.skipif(not (schedule.available() and (schedule.load() or {}).get("projection")),
-                    reason="no projected schedule index")
-def test_a_departure_in_the_projection_says_projected_not_timetabled(static):
+def test_a_departure_in_the_projection_says_projected_not_timetabled(static, timetable):
     """Past TTC's published dates the waits come off the latest week repeated.
     That has a timetable's precision and none of its authority, so every
     leg and the plan say "projected" -- never "timetable"."""
@@ -402,16 +395,14 @@ def test_a_departure_in_the_projection_says_projected_not_timetabled(static):
     assert "projected" in sources and "timetable" not in sources, sources
 
 
-@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
-def test_a_published_day_is_not_called_projected(static):
+def test_a_published_day_is_not_called_projected(static, timetable):
     first = dt.datetime.strptime(schedule.covered_dates()[0], "%Y%m%d").date()
     plan = itinerary.plan(UNION, FINCH, depart_at=dt.datetime.combine(first, dt.time(17, 20)),
                           conditions=static)
     assert plan["scheduleProjected"] is False
 
 
-@pytest.mark.skipif(not schedule.available(), reason="no schedule index")
-def test_the_last_covered_day_still_counts_as_covered(static):
+def test_the_last_covered_day_still_counts_as_covered(static, timetable):
     """An off-by-one here would expire the timetable a day early."""
     last = dt.datetime.strptime(schedule.covered_dates()[-1], "%Y%m%d").date()
     plan = itinerary.plan(UNION, FINCH,
@@ -543,3 +534,16 @@ def test_the_live_endpoint_reports_schedule_coverage(client):
     body = client.get("/api/live").get_json()
     assert "schedule" in body
     assert body["schedule"]["available"] == schedule.available()
+
+
+def test_a_train_boarded_the_moment_it_leaves_has_no_wait_leg(static, timetable):
+    """Standing on the platform at 07:00:16 with a train leaving at 07:00:16:
+    the wait is zero, and a "Wait 0 min" leg is noise the page should not
+    show. The ride still starts at once."""
+    union = itinerary.nodes["union"]
+    depart = dt.datetime.combine(dt.date.today(), dt.time(7, 0, 16))
+    plan = itinerary.plan((union["lat"], union["lon"]), FINCH, depart_at=depart,
+                          conditions=static, compare=False)
+    option = transit_option(plan)
+    assert legs_of(option, "wait") == []
+    assert legs_of(option, "transit")[0]["startTime"] == "07:00:16"

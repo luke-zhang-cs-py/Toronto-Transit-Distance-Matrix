@@ -213,10 +213,12 @@ def _search(origin, destination, depart_at, conditions, banned_lines=frozenset()
 
     for node_id, walk in _access_nodes(olat, olon, access):
         arrival = depart_at + dt.timedelta(minutes=walk)
+        # _access_nodes names each node once and `best` is empty here, so
+        # every entry is the first for its state: no "already reached
+        # sooner" test is needed (it could never be false).
         state = (node_id, None)
-        if state not in best or arrival < best[state][0]:
-            best[state] = (arrival, None, None, 0.0, None)
-            heapq.heappush(frontier, (arrival, next(counter), node_id, None))
+        best[state] = (arrival, None, None, 0.0, None)
+        heapq.heappush(frontier, (arrival, next(counter), node_id, None))
 
     settled = set()
     while frontier:

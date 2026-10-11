@@ -88,8 +88,8 @@ tools/        the two GTFS builders, the browser build, the figure refresh
 Data in, graph, routes out — and the arrows only point one way, so `feeds/`
 never imports `trips/`. `feeds/schedule.py` resolves the departure index two
 levels up, because getting that wrong does not raise: the departures simply
-stop being found, the suite skips instead of failing, and the app falls back
-to average headways as though no timetable had ever been built.
+stop being found and the app falls back to average headways as though no
+timetable had ever been built. A test pins the path.
 
 `notes/` holds the long-form write-ups — `CODE_AUDIT.md` — and
 `CONTRIBUTING.md` is in `.github/`, which is where GitHub looks for it.
@@ -100,7 +100,7 @@ to average headways as though no timetable had ever been built.
 pytest -q
 ```
 
-257 tests, 100% of 1,183 statements — and that figure is itself checked, because
+262 tests, 100% of 1,182 statements — and that figure is itself checked, because
 it had already gone stale once. The suite never touches the network: the
 realtime tests run against recorded feeds, one containing a real Line 2 closure.
 

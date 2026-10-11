@@ -34,9 +34,9 @@ pytest -q
 mv /tmp/schedule_index.json .  # what you see
 ```
 
-The suite has to pass both ways — 235 with the index, 218 and 17 skipped
-without. If a test needs the timetable, mark it
-`@pytest.mark.skipif(not schedule.available(), ...)` rather than assuming.
+The suite has to pass both ways. Timetable tests take the `timetable` fixture in
+`tests/conftest.py`, a small generated index, rather than reading the real
+one -- so they run in CI, and a rebuilt index cannot change them.
 
 `network/bus_routes.json` *is* committed, built by `tools/build_buses.py`.
 Rebuilding it is idempotent; if it is not, that is a bug.

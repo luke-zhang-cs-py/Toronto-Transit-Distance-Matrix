@@ -9,6 +9,7 @@ them had a test.
 
 import datetime as dt
 import json
+import os
 
 import pytest
 
@@ -24,14 +25,13 @@ def fresh():
 
 
 def a_scheduled_stop():
-    """A node and line the index actually holds, or skip."""
+    """A node and line the index actually holds."""
     index = schedule.load()
-    if not index:
-        pytest.skip("no schedule index; run tools/build_schedule.py")
+    assert index, "the timetable fixture was not requested"
     for node_id, by_line in index["departures"].items():
         for line in by_line:
             return node_id, line
-    pytest.skip("the index is empty")
+    raise AssertionError("the index is empty")
 
 
 # ------------------------------------------------------------------ loading
@@ -94,7 +94,7 @@ def test_a_stop_not_in_the_index_has_no_schedule():
                                      dt.datetime.now()) == []
 
 
-def test_a_scheduled_stop_reports_its_match_distance():
+def test_a_scheduled_stop_reports_its_match_distance(timetable):
     """A node 600 m from its stop is on the right line, but the walk to it is
     not what the graph says -- so the distance is recorded rather than
     hidden behind the threshold that accepted it."""
@@ -104,20 +104,19 @@ def test_a_scheduled_stop_reports_its_match_distance():
     assert distance is None or 0 <= distance <= 900
 
 
-def test_departures_come_back_in_order_and_are_not_repeated():
+def test_departures_come_back_in_order_and_are_not_repeated(timetable):
     """Two services can run on one date -- a weekday service plus a holiday
     exception -- and the same train then appears twice."""
     node_id, line = a_scheduled_stop()
     when = dt.datetime.combine(dt.date.today(), dt.time(8, 0))
     found = schedule.departures_after(node_id, line, when, limit=6)
-    if not found:
-        pytest.skip("nothing scheduled at that stop today")
+    assert found, "a train every six minutes: something is scheduled at 08:00"
     assert found == sorted(found)
     assert len(found) == len(set(found))
     assert all(d >= when for d in found)
 
 
-def test_a_wait_is_never_negative():
+def test_a_wait_is_never_negative(timetable):
     node_id, line = a_scheduled_stop()
     when = dt.datetime.combine(dt.date.today(), dt.time(8, 0))
     wait = schedule.wait_minutes(node_id, line, when)
@@ -125,7 +124,7 @@ def test_a_wait_is_never_negative():
         assert wait >= 0
 
 
-def test_nothing_is_offered_hours_away():
+def test_nothing_is_offered_hours_away(timetable):
     """MAX_WAIT_SECONDS. A router that waits six hours for a train is not
     planning a trip anybody would take, and reporting one as the answer is
     worse than saying there is none."""
@@ -137,13 +136,12 @@ def test_nothing_is_offered_hours_away():
         assert gap <= schedule.MAX_WAIT_SECONDS
 
 
-def test_the_service_span_says_when_the_day_starts_and_ends():
+def test_the_service_span_says_when_the_day_starts_and_ends(timetable):
     """So a trip planned for 03:00 can say "the first train is at 05:57"
     rather than reporting no route and leaving the reader to guess why."""
     node_id, line = a_scheduled_stop()
     span = schedule.service_span(node_id, line, dt.date.today())
-    if span is None:
-        pytest.skip("no service at that stop today")
+    assert span is not None
     first, last = span
     assert first <= last
     assert schedule.service_span("not-a-node", "not-a-line", dt.date.today()) is None
@@ -151,9 +149,7 @@ def test_the_service_span_says_when_the_day_starts_and_ends():
 
 # ------------------------------------------------------------- service days
 
-def test_services_are_known_for_the_dates_the_feed_covers():
-    if not schedule.available():
-        pytest.skip("no schedule index")
+def test_services_are_known_for_the_dates_the_feed_covers(timetable):
     dates = schedule.covered_dates()
     assert dates == sorted(dates)
     first = dt.datetime.strptime(dates[0], "%Y%m%d").date()
@@ -166,9 +162,7 @@ def test_a_date_outside_the_feed_runs_nothing():
     assert schedule.services_on(dt.date(1999, 1, 1)) == []
 
 
-def test_coverage_reports_what_the_index_holds():
-    if not schedule.available():
-        pytest.skip("no schedule index")
+def test_coverage_reports_what_the_index_holds(timetable):
     report = schedule.coverage()
     assert report["available"] is True
     assert report["nodes"] > 0
@@ -179,7 +173,7 @@ def test_coverage_reports_what_the_index_holds():
     assert isinstance(report["unmatched"], list)
 
 
-def test_after_midnight_departures_belong_to_the_previous_service_day():
+def test_after_midnight_departures_belong_to_the_previous_service_day(timetable):
     """GTFS writes a 01:30 Friday-night train as 25:30 on Friday's service.
     Anything asking about the small hours has to look at yesterday's
     timetable, or the last trains of the night vanish."""
@@ -188,11 +182,14 @@ def test_after_midnight_departures_belong_to_the_previous_service_day():
     table = index["departures"][node_id][line]
     past_midnight = [t for times in table.values() for t in times
                      if t >= schedule.SECONDS_PER_DAY]
-    if not past_midnight:
-        pytest.skip("this stop has no after-midnight service")
+    assert past_midnight, "the timetable runs past 24:00"
     # Those exist in the data, so the query has to be able to reach them.
     when = dt.datetime.combine(dt.date.today(), dt.time(0, 30))
-    assert schedule.departures_after(node_id, line, when, limit=2) is not None
+    found = schedule.departures_after(node_id, line, when, limit=2)
+    # 24:30:16 on yesterday's service, and the one after it -- each once,
+    # although two services list them.
+    assert found == [dt.datetime.combine(dt.date.today(), dt.time(0, 30, 16)),
+                     dt.datetime.combine(dt.date.today(), dt.time(0, 36, 16))]
 
 
 # ------------------------------------------------------- date coverage
@@ -206,30 +203,24 @@ def test_covers_is_about_the_date_not_the_file(tmp_path):
     assert schedule.covers(dt.date.today()) is False
 
 
-def test_covers_accepts_a_datetime_as_well_as_a_date():
+def test_covers_accepts_a_datetime_as_well_as_a_date(timetable):
     """plan() holds a datetime, so covers() has to take one without the
     caller remembering to reduce it."""
-    if not schedule.available():
-        pytest.skip("no schedule index")
     day = dt.datetime.strptime(schedule.covered_dates()[0], "%Y%m%d")
     assert schedule.covers(day) is True
     assert schedule.covers(day.date()) is True
 
 
-def test_covers_is_true_across_the_whole_covered_range():
-    if not schedule.available():
-        pytest.skip("no schedule index")
+def test_covers_is_true_across_the_whole_covered_range(timetable):
     dates = schedule.covered_dates()
     for stamp in (dates[0], dates[len(dates) // 2], dates[-1]):
         day = dt.datetime.strptime(stamp, "%Y%m%d").date()
         assert schedule.covers(day) is True, stamp
 
 
-def test_covers_is_false_outside_it():
+def test_covers_is_false_outside_it(timetable):
     """Both ends: before the feed starts, and after it expires -- which,
     with a projection in the index, is after the projection ends."""
-    if not schedule.available():
-        pytest.skip("no schedule index")
     dates = schedule.covered_dates()
     first = dt.datetime.strptime(dates[0], "%Y%m%d").date()
     last = dt.datetime.strptime(dates[-1], "%Y%m%d").date()
@@ -284,11 +275,26 @@ def test_coverage_says_how_far_the_projection_runs(tmp_path):
     assert report["projectedThrough"] == "2030-10-31"
 
 
-def test_covers_agrees_with_services_on():
+def test_covers_agrees_with_services_on(timetable):
     """It is defined as "are there services", so the two must not drift."""
-    if not schedule.available():
-        pytest.skip("no schedule index")
     last = dt.datetime.strptime(schedule.covered_dates()[-1], "%Y%m%d").date()
     for offset in range(-2, 5):
         day = last + dt.timedelta(days=offset)
         assert schedule.covers(day) == bool(schedule.services_on(day)), day
+
+
+def test_a_stop_the_timetable_has_never_heard_of_has_no_departures(timetable):
+    """Both halves: an unknown node, and a known node on a line that does not
+    call there. Empty, not an error -- the router then falls back to a wait."""
+    node_id, line = a_scheduled_stop()
+    when = dt.datetime.combine(dt.date.today(), dt.time(8, 0))
+    assert schedule.departures_after("not-a-node", line, when) == []
+    assert schedule.departures_after(node_id, "not-a-line", when) == []
+    assert schedule.wait_minutes("not-a-node", line, when) is None
+
+
+def test_the_index_is_looked_for_at_the_project_root():
+    """feeds/ is one level down, so the path takes two dirnames. Getting it
+    wrong does not raise -- every departure silently stops being found."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert schedule.INDEX_PATH == os.path.join(root, "schedule_index.json")

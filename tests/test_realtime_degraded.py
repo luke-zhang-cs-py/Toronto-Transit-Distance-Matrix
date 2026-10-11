@@ -434,3 +434,13 @@ def test_an_alert_that_reads_as_a_closure_but_names_nothing_is_skipped():
     out = realtime.disruptions(feed=FakeFeed([FakeField(alert=alert)]))
     assert out["closed"] == set()
     assert out["detour"] == set()
+
+
+def test_a_blank_translation_adds_nothing_to_an_alerts_text():
+    """Alerts carry one translation per language, and an unfilled one has
+    empty text. It must not leave a stray space in what gets classified."""
+    alert = FakeField(
+        header_text=FakeField(translation=[FakeField(text=""),
+                                           FakeField(text="Line 1 closed")]),
+        description_text=FakeField(translation=[FakeField(text="")]))
+    assert realtime._alert_text(alert) == "Line 1 closed"

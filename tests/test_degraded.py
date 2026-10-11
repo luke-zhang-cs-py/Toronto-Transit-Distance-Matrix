@@ -265,6 +265,17 @@ def test_a_zero_wait_is_not_charged_to_a_leg():
     assert segments[1]["minutes"] == 13.0
 
 
+def test_a_wait_with_nothing_to_board_is_left_off_the_walks():
+    """Every segment a walk: there is no vehicle for the wait to belong to,
+    and a walk is not somewhere to stand and wait, so nothing is labelled."""
+    from trips import routing
+
+    segments = [{"type": "walk", "minutes": 4.0}, {"type": "walk", "minutes": 2.0}]
+    routing._charge_boarding_wait(segments, 3)
+    assert segments == [{"type": "walk", "minutes": 4.0},
+                        {"type": "walk", "minutes": 2.0}]
+
+
 # ------------------------------------------------------------- the schedule
 
 

@@ -373,7 +373,7 @@ footer a { color: inherit; }
 
 var MODULES = [
   { name: 'feeds/realtime.py',         lines: 601, stmts: 248, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
-  { name: 'trips/itinerary.py',        lines: 586, stmts: 229, missed:  0, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'trips/itinerary.py',        lines: 588, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
   { name: 'feeds/schedule.py',         lines: 325, stmts: 137, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                    lines: 310, stmts: 124, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
   { name: 'tools/project_schedule.py', lines: 220, stmts: 111, missed:  0, does: 'four years past the feed, labelled as a projection' },
@@ -399,13 +399,13 @@ var OMITTED = [
 ];
 
 var TESTS = [
-  { file: 'test_itinerary.py',         n: 51, of: 'departure times, transfers, and the FIFO guarantee' },
+  { file: 'test_itinerary.py',         n: 52, of: 'departure times, transfers, and the FIFO guarantee' },
   { file: 'test_transit.py',           n: 43, of: 'the graph, the routing, and the HTTP surface' },
   { file: 'test_realtime.py',          n: 38, of: 'two recorded feeds, one with a real Line 2 closure' },
   { file: 'test_geo_gtfs.py',          n: 25, of: 'the two helpers both build tools used to duplicate' },
-  { file: 'test_schedule.py',          n: 23, of: 'the index, the board period, and life without one' },
-  { file: 'test_realtime_degraded.py', n: 22, of: 'the live feed when it is slow, absent, corrupt, or unparseable' },
-  { file: 'test_degraded.py',          n: 15, of: 'what it does when the data it wants is not there' },
+  { file: 'test_schedule.py',          n: 25, of: 'the index, the board period, and life without one' },
+  { file: 'test_realtime_degraded.py', n: 23, of: 'the live feed when it is slow, absent, corrupt, or unparseable' },
+  { file: 'test_degraded.py',          n: 16, of: 'what it does when the data it wants is not there' },
   { file: 'test_project_schedule.py',  n: 12, of: 'four years past the feed: the week repeated, the holidays on holiday service' },
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' },
   { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' },
