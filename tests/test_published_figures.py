@@ -14,8 +14,8 @@ What is checked statically, so it works in CI with no coverage run:
 
   * every module the page lists exists, with the line count it claims;
   * its statement count is what `coverage` counts, using this repo's own
-    `.coveragerc` — which is what makes the two omitted build tools stay
-    omitted rather than quietly appearing;
+    `.coveragerc`, and nothing the page counts is omitted by it -- the build
+    tools in tools/ were, until they had tests, and are counted now;
   * no module in the project is missing from the page;
   * every test file and its collected count.
 
@@ -41,10 +41,12 @@ sys.path.insert(0, ROOT)
 
 PAGE = os.path.join(ROOT, "docs", "index.html")
 
-# Directories that hold no shipped module. tests/ is excluded from coverage by
-# the config too; the rest are never source.
+# Directories that hold no measured module. tests/ is excluded from coverage
+# by the config too; the rest are never source. tools/ used to be here, with
+# the build tools omitted from coverage -- they are measured now, so they
+# have to be on the page like everything else.
 SKIP_DIRS = {".git", "__pycache__", "tests", "htmlcov", ".venv", "venv",
-             "node_modules", "docs", "tools", "data", "static", "templates"}
+             "node_modules", "docs", "data", "static", "templates"}
 
 # The page's own history: counts that describe what a figure *used to* say.
 # These are the only numbers on the page allowed to be wrong, because being
@@ -314,26 +316,28 @@ def test_every_module_is_on_the_page(page):
     assert present - listed == set(), (
         f"these modules are in the project but not on the page: "
         f"{sorted(present - listed)}")
-    # The omitted build tools live in tools/, which source_files() skips on
-    # purpose, so their existence is checked against the disk rather than
-    # against a scan that is meant not to find them. A name that is on the
-    # page and nowhere at all is still caught.
+    # Checked against the disk rather than the scan, so a page row for a file
+    # in a directory the scan skips is not reported as gone. A name that is
+    # on the page and nowhere at all is still caught.
     gone = sorted(name for name in listed - present
                   if not os.path.exists(os.path.join(ROOT, name)))
     assert gone == [], (
         f"the page lists modules that no longer exist: {gone}")
 
 
-def test_the_omitted_modules_really_are_omitted(page):
-    """The page says two build tools are left out of coverage on purpose. If
-    that stops being true, the omission has become an accident."""
-    claimed = listed_omissions(page)
-    if not claimed:
-        pytest.skip("this page claims no omissions")
-    for name in claimed:
+def test_the_page_and_the_config_agree_about_what_is_omitted(page):
+    """Both directions. A module the page calls omitted must be omitted, or
+    the omission has become an accident; and a module the page counts must
+    not be, or its row is a figure coverage never measured. Nothing is
+    omitted today -- the build tools were, until they had tests -- so the
+    first half checks an empty list and the second half every row."""
+    for name in listed_omissions(page):
         assert is_omitted(name), (
             f"the page says {name} is omitted from coverage, but nothing in "
             f".coveragerc matches it: {omit_patterns()}")
+    counted = sorted(name for name in listed_modules(page) if is_omitted(name))
+    assert counted == [], (
+        f"the page counts these, but .coveragerc omits them: {counted}")
 
 
 def measured_with(page):

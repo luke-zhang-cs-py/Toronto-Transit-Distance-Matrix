@@ -76,6 +76,11 @@ INDEX_PATH = os.path.join(PROJ, "schedule_index.json")
 # rather than hidden behind a threshold.
 MAX_MATCH_METRES = 900.0
 
+# How often the streaming pass reports progress, in stop_times rows. A
+# module constant so a test can see the progress line without streaming
+# two million rows to get there.
+PROGRESS_EVERY = 2_000_000
+
 
 def log(message):
     print(message, flush=True)
@@ -150,7 +155,7 @@ def collect_departures(archive, trips):
     seen = 0
     for row in rows(archive, "stop_times.txt"):
         seen += 1
-        if seen % 2_000_000 == 0:
+        if seen % PROGRESS_EVERY == 0:
             log(f"    {seen:,} stop_times rows...")
         trip = trips.get(row["trip_id"])
         if trip is None:

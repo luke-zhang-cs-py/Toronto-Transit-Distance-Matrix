@@ -63,4 +63,9 @@ jobs:
         # transit trip" and were red here for six commits while green on a
         # machine that had the index built. If you are debugging a failure
         # that will not reproduce, build the index or move it aside.
-        run: pytest -q
+        #
+        # Under coverage, and failing below 100% of lines and branches over
+        # the whole repository: .coveragerc measures every module, the build
+        # tools included, and omits only tests/. A module nobody tests turns
+        # this step red rather than quietly lowering a figure.
+        run: pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100

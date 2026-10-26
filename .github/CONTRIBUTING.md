@@ -44,12 +44,18 @@ Rebuilding it is idempotent; if it is not, that is a bug.
 ## Tests
 
 ```bash
-pytest -q --cov=. --cov-report=term-missing
+pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
 python -m flake8 . --select=E9,F63,F7,F82,F401,F402,F811,F841,E722,E741
 ```
 
-Both must be clean before a push. CI runs the same lint selection plus an
-advisory pass at `--max-line-length=127`.
+Both must be clean before a push. CI runs the same coverage command -- 100% of
+lines and branches, every module including `tools/`, nothing omitted but
+`tests/` -- and the same lint selection plus an advisory pass at
+`--max-line-length=127`. Plain `--cov`, not `--cov=.`: the source list is in
+`.coveragerc`, and it names `tools/` so that an untested tool reports 0%
+rather than not appearing. The build tools are tested against GTFS feeds of a
+few rows written into `tmp_path`; a test never downloads the archive or
+writes over a tracked file.
 
 Do not assert on `plan()["options"][0]` expecting transit. Options are sorted
 by duration across every kind, so the first one is whichever is quickest,

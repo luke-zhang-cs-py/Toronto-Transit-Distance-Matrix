@@ -309,7 +309,7 @@ def build(zip_path, route_limit, spacing):
     # it is the only step that needs to know what is actually reachable; then
     # deduplicate once more, because a bridge can land on a pair that already
     # existed.
-    dangling = _prune_dangling(out_routes, transfers)
+    dangling = _prune_dangling(out_routes, transfers, existing)
     if dangling:
         print(f"  {dangling} transfer edge(s) to discarded stops pruned")
     dropped = _dedupe(transfers)
@@ -365,7 +365,7 @@ def _dedupe(transfers):
     return dropped
 
 
-def _prune_dangling(out_routes, transfers):
+def _prune_dangling(out_routes, transfers, existing):
     """Drop transfer edges pointing at a stop that was never emitted.
 
     A route with fewer than three usable stops is discarded, and its station
@@ -375,11 +375,16 @@ def _prune_dangling(out_routes, transfers):
 
     Worse, they made the island check believe two components were joined,
     which is how eleven stops ended up in the graph reachable from nowhere.
+
+    An end is kept if it is an emitted stop or a hand-built node. This used
+    to tell the two apart by the "b" every generated id starts with -- and
+    Bathurst, Bay, Bloor-Yonge and Broadview start with one too, so every
+    station transfer to one of those was pruned as dangling.
     """
     emitted = {stop["id"] for route in out_routes for stop in route["stops"]}
+    known = emitted | set(existing)
     kept = [edge for edge in transfers
-            if (edge[0] in emitted or not edge[0].startswith("b"))
-            and (edge[1] in emitted or not edge[1].startswith("b"))]
+            if edge[0] in known and edge[1] in known]
     dropped = len(transfers) - len(kept)
     transfers[:] = kept
     return dropped
@@ -449,8 +454,8 @@ def _stitch_islands(out_routes, transfers, existing, existing_adj):
                 distance = metres(lat, lon, *position[other])
                 if best is None or distance < best[2]:
                     best = (node_id, other, distance)
-        if best is None:
-            break
+        # Always found: the mainland holds the first hand-built node, which
+        # has a position, so an island always has somewhere to walk to.
         node_id, other, distance = best
         walk = max(TRANSFER_MINUTES, int(round(distance / 1000.0 / 4.8 * 60)))
         transfers.append([node_id, other, walk])

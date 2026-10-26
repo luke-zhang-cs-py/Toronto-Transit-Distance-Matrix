@@ -1,26 +1,26 @@
 [run]
+# The whole repository: every module, the build tools included. "." finds the
+# root and the packages; tools/ is named as well because it has no
+# __init__.py, and coverage does not look for unimported files in a directory
+# that is not a package. Naming it means a tool nobody tests reports 0%
+# rather than not appearing at all -- which is how four of them stayed out
+# of the figure.
+source =
+    .
+    tools
+branch = True
 omit =
     tests/*
-    # Developer scripts, not shipped code. tools/refresh_figures.py keeps
-    # the published figures true and is run by hand. tools/build_schedule.py
-    # and tools/build_buses.py stream a 207 MB GTFS archive; exercising them
-    # in the suite would mean shipping the archive. (This list also named
-    # them by their old root-level names, tools_build_*.py, which match
-    # nothing since the move into tools/.)
-    # tools/project_schedule.py is not in this list: it is pure, it decides
-    # what the router says about every date past the feed, and
-    # tests/test_project_schedule.py runs all of it.
-    tools/build_buses.py
-    tools/build_schedule.py
-    tools/build_static.py
-    tools/refresh_figures.py
+    # The build tools used to be omitted here, on the grounds that they
+    # stream a 207 MB GTFS archive. They are tested now against a feed of a
+    # few rows written into tmp_path (tests/test_build_*.py), and the figure
+    # refresher against a page of a few rows (tests/test_refresh_figures.py).
 
 [report]
-exclude_lines =
-    pragma: no cover
-    # The script entry point. Importing the module under test must not
-    # start a server, so the block cannot execute in the suite. It is one
-    # line -- main() -- and main() itself is measured and tested. Same
-    # exclusion the other Flask projects in this family use.
+fail_under = 100
+show_missing = True
+exclude_also =
+    # The script entry point. Importing a module under test must not start
+    # a server or a build, so the block cannot execute in the suite. It is
+    # one line -- main() -- and main() itself is measured and tested.
     if __name__ == .__main__.:
-    raise NotImplementedError

@@ -229,3 +229,103 @@ console.log(JSON.stringify({ afterBoth, live: compassLive,
     assert out["afterBoth"] == "Located to 5 m."
     assert "relative angle" in out["relativeOnly"], (
         "with no true bearing at all the advice is still owed")
+
+
+# ---------------------------------------------------------------------------
+# The build's own refusals, and the command itself
+# ---------------------------------------------------------------------------
+# Every check in build_static.py exists to stop the browser build quietly
+# disagreeing with the server, and a check that never fires is a check
+# nobody has seen work. Each is tripped here by breaking the one thing it
+# guards. The command writes into tmp_path, never docs/app/.
+
+def template():
+    return read(os.path.join(ROOT, "templates", "index.html"))
+
+
+def test_the_build_writes_lf_files_into_directories_it_creates(tmp_path):
+    path = tmp_path / "deep" / "er" / "page.js"
+    build_static.write(str(path), "one\ntwo\n")
+    assert path.read_bytes() == b"one\ntwo\n"
+
+
+def test_an_anchor_the_template_no_longer_has_stops_the_build():
+    with pytest.raises(SystemExit, match="could not relabel the heading -- expected "
+                                         "exactly one match .* found 0"):
+        build_static.replace_once("<h1>Moved</h1>", "<h1>Old</h1>", "", "relabel the heading")
+    with pytest.raises(SystemExit, match="found 2"):
+        build_static.replace_once("ab ab", "ab", "", "dedupe")
+
+
+def test_a_mode_with_no_modelled_wait_stops_the_build(monkeypatch):
+    import network
+    waits = {mode: wait for mode, wait in network.WAIT_BY_MODE.items() if mode != "bus"}
+    monkeypatch.setattr(network, "WAIT_BY_MODE", waits)
+    with pytest.raises(SystemExit, match="no modelled wait for bus"):
+        build_static.collect_graph()
+
+
+def test_a_line_with_no_recorded_mode_stops_the_build(monkeypatch):
+    import network
+    monkeypatch.setattr(network, "mode_of_line",
+                        lambda line: None if line == "Line 1 (Yonge-University)" else "x")
+    with pytest.raises(SystemExit, match=r"no recorded mode.*: Line 1 \(Yonge-University\)$"):
+        build_static.collect_graph()
+
+
+def test_a_static_model_that_closes_a_line_stops_the_build(monkeypatch):
+    """The port skips closure handling because the static model never
+    closes anything. The day it does, the port is wrong."""
+    class Closing:
+        def impact_on(self, line):
+            return None if line == "Line 2 (Bloor-Danforth)" else 0.0
+
+    monkeypatch.setattr(realtime.Conditions, "static", classmethod(lambda cls: Closing()))
+    with pytest.raises(SystemExit, match=r"prices or closes \['Line 2 \(Bloor-Danforth\)'\]"):
+        build_static.collect_graph()
+
+
+def test_a_ported_wait_that_disagrees_with_the_server_stops_the_build():
+    class Server:
+        def boarding_wait(self, lines, mode):
+            return (4.0 if lines == {"Line 1"} else 99.0), False
+
+    nodes = {"union": {"mode": "subway"}, "spadina": {"mode": "streetcar"}}
+    lines = {"union": {"Line 1"}, "spadina": {"510 Spadina", "Line 1"}}
+    with pytest.raises(SystemExit) as stopped:
+        build_static.check_boarding_waits(
+            nodes, {}, Server(), lines.get, {"Line 1": "subway"},
+            {"subway": 4.0, "streetcar": 5.0}, 6.0)
+    assert "spadina: port says 4.0, realtime says 99.0" in str(stopped.value)
+    assert "union" not in str(stopped.value)
+
+
+def test_jinja_left_in_the_page_stops_the_build():
+    with pytest.raises(SystemExit, match=r"unresolved Jinja left in the page: \['\{\{ csrf \}\}'\]"):
+        build_static.page(template() + "{{ csrf }}")
+
+
+def test_a_trip_card_after_the_filter_card_stops_the_build():
+    text = ('      <div class="section" id="filterCard">\n'
+            '      <div class="section" id="tripCard" style="display:none;">\n')
+    with pytest.raises(SystemExit, match="could not find the trip card"):
+        build_static.trip_card(text)
+
+
+def test_the_command_writes_the_build_and_removes_what_it_no_longer_makes(
+        tmp_path, monkeypatch, capsys):
+    out = tmp_path / "app"
+    (out / "js").mkdir(parents=True)
+    (out / "js" / "renamed-last-time.js").write_text("old", encoding="utf-8")
+    monkeypatch.setattr(build_static, "OUT", str(out))
+
+    build_static.main()
+
+    _graph, written = build_static.render()
+    for name, body in written.items():
+        assert read(str(out / name)) == body, name
+    assert not (out / "js" / "renamed-last-time.js").exists()
+    log = capsys.readouterr().out
+    assert "removed stale js%srenamed-last-time.js" % os.sep in log
+    assert "516 stops" in log
+    assert "wrote %d files to docs/app" % len(written) in log

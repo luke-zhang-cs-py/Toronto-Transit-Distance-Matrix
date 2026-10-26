@@ -364,7 +364,7 @@ footer a { color: inherit; }
 /* Every number on this page is read from here, so the tiles, the charts and
  * the table cannot drift apart.
  *
- * Measured on 11 September 2026 in the repository: `pytest -q --cov` for the
+ * Measured on 26 October 2026 in the repository: `pytest -q --cov` for the
  * statements and what is uncovered, `wc -l` for length, `pytest
  * --collect-only -q` for the test counts, and the graph figures by importing
  * the network package. Not estimated. tests/test_published_figures.py checks
@@ -373,10 +373,14 @@ footer a { color: inherit; }
 
 var MODULES = [
   { name: 'feeds/realtime.py',         lines: 601, stmts: 248, missed:  0, does: 'live headways, closures and detours from GTFS-realtime' },
+  { name: 'tools/build_buses.py',      lines: 479, stmts: 234, missed:  0, does: 'the GTFS archive -> network/bus_routes.json' },
   { name: 'trips/itinerary.py',        lines: 588, stmts: 228, missed:  0, does: 'trips for a departure time, with clock times per leg' },
+  { name: 'tools/build_schedule.py',   lines: 356, stmts: 179, missed:  0, does: 'the GTFS archive -> the departures index' },
+  { name: 'tools/refresh_figures.py',  lines: 264, stmts: 139, missed:  0, does: 'rewrites the figures on this page from a fresh run' },
   { name: 'feeds/schedule.py',         lines: 325, stmts: 137, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                    lines: 310, stmts: 124, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
   { name: 'tools/project_schedule.py', lines: 220, stmts: 111, missed:  0, does: 'four years past the feed, labelled as a projection' },
+  { name: 'tools/build_static.py',     lines: 391, stmts: 110, missed:  0, does: 'the browser build in docs/app, checked against the Python' },
   { name: 'trips/routing.py',          lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
   { name: 'network/regional.py',       lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
   { name: 'feeds/gtfs.py',             lines: 149, stmts:  52, missed:  0, does: 'reads the GTFS archive; shared by both build tools' },
@@ -390,13 +394,11 @@ var MODULES = [
   { name: 'trips/__init__.py',         lines:   6, stmts:   0, missed:  0, does: 'the package: coordinates in, itineraries out' }
 ];
 
-/* The two build tools are omitted from coverage on purpose, and named here so
- * the omission is visible rather than silent: each streams the 207 MB GTFS
- * archive, so exercising them in the suite would mean shipping it. */
-var OMITTED = [
-  { name: 'tools/build_schedule.py', lines: 351, why: '207 MB of GTFS -> a departures index' },
-  { name: 'tools/build_buses.py',    lines: 474, why: 'the same archive -> network/bus_routes.json' }
-];
+/* Modules left out of coverage, named here so an omission would be visible
+ * rather than silent. None: the build tools were, on the grounds that each
+ * streams the 207 MB GTFS archive, until they were tested against a feed of a
+ * few rows written by the test itself. */
+var OMITTED = [];
 
 var TESTS = [
   { file: 'test_itinerary.py',         n: 52, of: 'departure times, transfers, and the FIFO guarantee' },
@@ -406,13 +408,16 @@ var TESTS = [
   { file: 'test_schedule.py',          n: 25, of: 'the index, the board period, and life without one' },
   { file: 'test_realtime_degraded.py', n: 23, of: 'the live feed when it is slow, absent, corrupt, or unparseable' },
   { file: 'test_degraded.py',          n: 16, of: 'what it does when the data it wants is not there' },
+  { file: 'test_refresh_figures.py',   n: 16, of: 'the tool that rewrites these figures, on a page of a few rows' },
+  { file: 'test_static_build.py',      n: 15, of: 'the browser build: current, escaped, agreeing with the Python; page races' },
+  { file: 'test_build_buses.py',       n: 14, of: 'the bus routes: thinning, hop times, transfers, islands' },
+  { file: 'test_build_schedule.py',    n: 14, of: 'the departures index, built from a feed of a few rows' },
   { file: 'test_project_schedule.py',  n: 12, of: 'four years past the feed: the week repeated, the holidays on holiday service' },
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' },
-  { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' },
-  { file: 'test_static_build.py',      n:  6, of: 'the browser build: current, escaped, agreeing with the Python; page races' }
+  { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' }
 ];
 
-var TEST_LINES = 3441;
+var TEST_LINES = 4491;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so
@@ -639,7 +644,7 @@ function drawTable() {
       '<td>' + esc(o.why) + '</td></tr>';
   }).join('');
   el('tableBody').innerHTML = rows + omitted +
-    '<tr class="total"><td>Total, excluding the build tools</td>' +
+    '<tr class="total"><td>Total</td>' +
     '<td class="num">' + LINES.toLocaleString() + '</td>' +
     '<td class="num">' + STMTS.toLocaleString() + '</td>' +
     '<td class="num">' + Math.round(100 * COVERED / STMTS) + '%</td>' +
@@ -746,7 +751,7 @@ el('tableBtn').addEventListener('click', function () {
 });
 
 el('footNote').textContent =
-  'Figures measured on 5 October 2026 in the repository with pytest ' +
+  'Figures measured on 26 October 2026 in the repository with pytest ' +
   '--cov, wc -l and pytest --collect-only, not estimated — and the module ' +
   'and test figures are checked against a fresh measurement by ' +
   'tests/test_published_figures.py, because a page like this goes stale the ' +
