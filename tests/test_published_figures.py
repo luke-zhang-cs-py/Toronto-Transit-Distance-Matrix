@@ -17,7 +17,8 @@ What is checked statically, so it works in CI with no coverage run:
     `.coveragerc`, and nothing the page counts is omitted by it -- the build
     tools in tools/ were, until they had tests, and are counted now;
   * no module in the project is missing from the page;
-  * every test file and its collected count.
+  * every test file and its collected count, and the lines of test;
+  * the README's sentence of totals, against the page's rows.
 
 `missed` needs an actual run, so it is verified only when a `.coverage` data
 file is present and skipped when it is not, rather than asserted against an
@@ -305,6 +306,12 @@ def test_the_page_has_a_data_block_at_all(page):
         "anything")
     assert "var TESTS = [" in page, (
         "the TESTS block could not be read either")
+    # The omissions list is empty today, so reading no rows from it is the
+    # expected answer -- and also what a renamed or deleted block gives,
+    # which would leave the page's script throwing at OMITTED.map.
+    assert re.search(r"var OMITTED = \[", page), (
+        "the OMITTED block could not be read, so 'nothing is omitted' "
+        "cannot be told from 'the list is gone'")
 
 
 def test_every_module_is_on_the_page(page):
@@ -330,7 +337,9 @@ def test_the_page_and_the_config_agree_about_what_is_omitted(page):
     the omission has become an accident; and a module the page counts must
     not be, or its row is a figure coverage never measured. Nothing is
     omitted today -- the build tools were, until they had tests -- so the
-    first half checks an empty list and the second half every row."""
+    first half checks an empty list (that the list was read at all is
+    test_the_page_has_a_data_block_at_all's job) and the second half every
+    row."""
     for name in listed_omissions(page):
         assert is_omitted(name), (
             f"the page says {name} is omitted from coverage, but nothing in "
@@ -431,6 +440,41 @@ def test_every_test_file_and_its_count_are_the_real_ones(page):
         f"the page's test table does not match the suite.\n"
         f"  page:      {sorted(listed.items())}\n"
         f"  collected: {sorted(real.items())}")
+
+
+def test_the_test_line_count_is_the_measured_one(page):
+    """TEST_LINES is printed on the page beside the module figures, and
+    refresh_figures.py writes it -- so it is checked like them: every .py
+    under tests/, the bytecode cache left out."""
+    found = re.search(r"var TEST_LINES = (\d+);", page)
+    assert found, "the page has no TEST_LINES figure to check"
+    total = 0
+    for here, dirs, names in os.walk(os.path.join(ROOT, "tests")):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for name in names:
+            if name.endswith(".py"):
+                with io.open(os.path.join(here, name), encoding="utf-8") as handle:
+                    total += len(handle.read().splitlines())
+    assert int(found.group(1)) == total, (
+        f"the page says {found.group(1)} lines of test, measured {total}")
+
+
+def test_the_readme_figures_are_the_pages(page):
+    """The README quotes the same totals in a sentence that says it is
+    checked. The page's rows are checked above, so the README is checked
+    against them: the test count, the percentage and the statement count."""
+    with io.open(os.path.join(ROOT, "README.md"), encoding="utf-8") as handle:
+        readme = handle.read()
+    found = re.search(r"([\d,]+) tests, (\d+)% of ([\d,]+) statements", readme)
+    assert found, "the README no longer states its figures"
+    modules = listed_modules(page).values()
+    stmts = sum(body[1] for body in modules)
+    missed = sum(body[2] for body in modules)
+    tests = sum(int(n) for n in re.findall(r"\{ file: '[\w.]+',\s*n:\s*(\d+),", page))
+    wanted = "%s tests, %d%% of %s statements" % (
+        format(tests, ","), round(100 * (stmts - missed) / stmts), format(stmts, ","))
+    assert found.group(0) == wanted, (
+        f"the README says {found.group(0)!r}; the page's figures give {wanted!r}")
 
 
 def test_the_page_says_when_it_was_measured(page):

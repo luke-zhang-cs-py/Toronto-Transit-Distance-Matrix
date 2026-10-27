@@ -19,7 +19,11 @@ omit =
 [report]
 fail_under = 100
 show_missing = True
-exclude_also =
+# exclude_lines, not exclude_also: exclude_also keeps coverage's built-in
+# patterns too -- `pragma: no cover`, `pragma: no branch`, `if TYPE_CHECKING:`
+# and `...` stub bodies -- so a pragma anywhere would still hide lines from
+# the 100%. This list replaces those defaults, leaving only the one below.
+exclude_lines =
     # The script entry point. Importing a module under test must not start
     # a server or a build, so the block cannot execute in the suite. It is
     # one line -- main() -- and main() itself is measured and tested.

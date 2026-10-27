@@ -226,11 +226,14 @@ def test_the_command_rewrites_the_page_and_says_what_changed(repo, monkeypatch, 
     assert out.rstrip().endswith("2 tests, 3 statements, 67% covered")
 
     # Run again: the page is right now, so only the totals are printed and
-    # nothing is written.
-    before = os.path.getmtime(str(repo / "docs" / "index.html"))
+    # nothing is written. Writes are counted rather than mtimes compared: a
+    # rewrite inside the filesystem's timestamp resolution leaves the mtime
+    # where it was, so an mtime check can pass for a file that was rewritten.
+    written = []
+    monkeypatch.setattr(rf, "write", lambda path, text: written.append(path))
     rf.main()
     assert capsys.readouterr().out == "  2 tests, 3 statements, 67% covered\n"
-    assert os.path.getmtime(str(repo / "docs" / "index.html")) == before
+    assert written == [], "a page that was already right was written again"
 
 
 def test_a_rewrite_that_is_not_stable_is_never_written(repo, monkeypatch):

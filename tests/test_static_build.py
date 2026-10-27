@@ -321,11 +321,13 @@ def test_the_command_writes_the_build_and_removes_what_it_no_longer_makes(
 
     build_static.main()
 
-    _graph, written = build_static.render()
+    graph, written = build_static.render()
     for name, body in written.items():
         assert read(str(out / name)) == body, name
     assert not (out / "js" / "renamed-last-time.js").exists()
     log = capsys.readouterr().out
     assert "removed stale js%srenamed-last-time.js" % os.sep in log
-    assert "516 stops" in log
+    # From the graph rather than typed: the stop count changes every time
+    # network/bus_routes.json is rebuilt.
+    assert "%d stops," % len(graph["nodes"]) in log
     assert "wrote %d files to docs/app" % len(written) in log

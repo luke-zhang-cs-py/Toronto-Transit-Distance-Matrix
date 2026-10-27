@@ -100,7 +100,7 @@ timetable had ever been built. A test pins the path.
 pytest -q --cov --cov-branch --cov-fail-under=100    # what CI runs
 ```
 
-315 tests, 100% of 1,844 statements — and that figure is itself checked, because
+317 tests, 100% of 1,844 statements — and that figure is itself checked, because
 it had already gone stale once. The suite never touches the network: the
 realtime tests run against recorded feeds, one containing a real Line 2 closure.
 The figure is the whole repository, lines and branches, the GTFS build tools

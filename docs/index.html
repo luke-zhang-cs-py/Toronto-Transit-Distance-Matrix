@@ -412,12 +412,12 @@ var TESTS = [
   { file: 'test_static_build.py',      n: 15, of: 'the browser build: current, escaped, agreeing with the Python; page races' },
   { file: 'test_build_buses.py',       n: 14, of: 'the bus routes: thinning, hop times, transfers, islands' },
   { file: 'test_build_schedule.py',    n: 14, of: 'the departures index, built from a feed of a few rows' },
+  { file: 'test_published_figures.py', n: 13, of: 'the numbers on this page, against a fresh measurement' },
   { file: 'test_project_schedule.py',  n: 12, of: 'four years past the feed: the week repeated, the holidays on holiday service' },
-  { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' },
-  { file: 'test_published_figures.py', n: 11, of: 'the numbers on this page, against a fresh measurement' }
+  { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' }
 ];
 
-var TEST_LINES = 4491;
+var TEST_LINES = 4540;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so

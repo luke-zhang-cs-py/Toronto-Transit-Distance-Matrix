@@ -47,9 +47,9 @@ def measure():
     """Run the suite under coverage and read the JSON report.
 
     The report rather than a static analysis: it is the same set of files the
-    terminal report prints, so the omitted build tools stay omitted and the
-    network/ package is not missed — both of which a walk of the root got
-    wrong.
+    terminal report prints, so whatever .coveragerc omits stays omitted and
+    tools/ and the network/ package are not missed — both of which a walk of
+    the root got wrong.
     """
     handle, path = tempfile.mkstemp(suffix=".json")
     os.close(handle)
@@ -184,9 +184,9 @@ def fix_omitted(page, changes):
     """Line counts for the modules coverage is told to skip.
 
     measure() never sees them -- that is what being omitted means -- so
-    nothing else here would notice when they change. Both went stale the
-    moment the two build tools moved into tools/, which is exactly the kind
-    of quiet drift the rest of this script exists to stop.
+    nothing else here would notice when they change. None is omitted today;
+    the two build tools were, and both counts went stale when they moved
+    into tools/ -- the quiet drift the rest of this script exists to stop.
     """
     block = re.search(r"var OMITTED = \[\n(.*?)\n\];", page, re.S)
     if not block:
