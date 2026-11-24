@@ -399,7 +399,7 @@ footer a { color: inherit; }
 /* Every number on this page is read from here, so the tiles, the charts and
  * the table cannot drift apart.
  *
- * Measured on 26 October 2026 in the repository: `pytest -q --cov` for the
+ * Measured on 24 November 2026 in the repository: `pytest -q --cov` for the
  * statements and what is uncovered, `wc -l` for length, `pytest
  * --collect-only -q` for the test counts, and the graph figures by importing
  * the network package. Not estimated. tests/test_published_figures.py checks
@@ -439,6 +439,7 @@ var TESTS = [
   { file: 'test_itinerary.py',         n: 52, of: 'departure times, transfers, and the FIFO guarantee' },
   { file: 'test_transit.py',           n: 43, of: 'the graph, the routing, and the HTTP surface' },
   { file: 'test_realtime.py',          n: 38, of: 'two recorded feeds, one with a real Line 2 closure' },
+  { file: 'test_theming.py',           n: 31, of: 'the themes: every token set, every pairing AA, dark with no JavaScript, the toggle' },
   { file: 'test_geo_gtfs.py',          n: 25, of: 'the two helpers both build tools used to duplicate' },
   { file: 'test_schedule.py',          n: 25, of: 'the index, the board period, and life without one' },
   { file: 'test_realtime_degraded.py', n: 23, of: 'the live feed when it is slow, absent, corrupt, or unparseable' },
@@ -452,7 +453,7 @@ var TESTS = [
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' }
 ];
 
-var TEST_LINES = 4540;
+var TEST_LINES = 4976;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so
@@ -804,7 +805,7 @@ el('tableBtn').addEventListener('click', function () {
 });
 
 el('footNote').textContent =
-  'Figures measured on 26 October 2026 in the repository with pytest ' +
+  'Figures measured on 24 November 2026 in the repository with pytest ' +
   '--cov, wc -l and pytest --collect-only, not estimated — and the module ' +
   'and test figures are checked against a fresh measurement by ' +
   'tests/test_published_figures.py, because a page like this goes stale the ' +
