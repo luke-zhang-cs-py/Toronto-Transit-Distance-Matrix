@@ -1,9 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Toronto Transit Reach (browser build)</title>
+<!-- class="theme-dark" above themes the page with or without JavaScript.
+     This only restores a theme picked on an earlier visit, before first
+     paint so it never flashes. The key is 'theme' on purpose: every page on
+     luke-zhang-cs-py.github.io shares the origin, so one choice carries. -->
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('theme'); } catch (e) { /* storage blocked */ }
+    if (/^[a-z]+$/.test(saved)) document.documentElement.classList.replace('theme-dark', 'theme-' + saved);
+  })();
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
@@ -15,6 +26,15 @@
 <body>
 <div class="wrap">
   <header>
+    <button type="button" class="themeBtn" id="themeBtn" aria-label="Switch to light theme"
+            title="Switch to light theme">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path
+           d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
+           d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
     <h1>Toronto Transit Reach<em>browser build</em></h1>
     <div class="sub">Classic OpenStreetMap tiles, no API key. Click anywhere on the map:
       every stop you can reach is shaded by how long it takes, over the full TTC + YRT + MiWay
@@ -64,9 +84,9 @@
       <div class="section">
         <h2>Heat radar</h2>
         <button id="radarBtn">Heat radar: ON</button>
-        <div class="row" style="margin-top:12px;">
+        <div class="row" style="margin-top:var(--space-3);">
           <span class="label">Shade level</span>
-          <span class="val" id="valShade" style="font-size:13px;">60%</span>
+          <span class="val" id="valShade" style="font-size:var(--text-md);">60%</span>
         </div>
         <input type="range" id="shadeSlider" min="10" max="100" step="5" value="60">
       </div>
@@ -124,6 +144,31 @@
     repository is the same page with a live feed and a trip planner behind it.</footer>
 </div>
 
+<!-- The theme toggle, ahead of app.js and in its own element so that a map
+     library that fails to load cannot take it down too. THEMES in order:
+     each name needs a .theme-<name> block in style.css, and the first is the
+     one written into the markup. -->
+<script>
+  var THEMES = ['dark', 'light'];
+  (function () {
+    var root = document.documentElement;
+    var button = document.getElementById('themeBtn');
+    var theme = THEMES.filter(function (t) { return root.classList.contains('theme-' + t); })[0] || THEMES[0];
+    function nextTheme() { return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; }
+    function applyTheme(name) {
+      root.className = root.className.replace(/(^|\s)theme-\S+/g, '').trim() + ' theme-' + name;
+      theme = name;
+      button.setAttribute('aria-label', 'Switch to ' + nextTheme() + ' theme');
+      button.title = button.getAttribute('aria-label');
+    }
+    applyTheme(theme);   // also drops a saved theme that no longer exists
+    button.addEventListener('click', function () {
+      var next = nextTheme();
+      try { localStorage.setItem('theme', next); } catch (e) { /* not remembered */ }
+      applyTheme(next);
+    });
+  })();
+</script>
 <!-- Order matters: static-api.js installs the fetch shim before
      app.js runs and calls it; static-ui.js replaces functions
      app.js defines, so it goes last. when.js is absent -- it is the
