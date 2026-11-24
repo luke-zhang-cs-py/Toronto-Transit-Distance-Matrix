@@ -49,7 +49,9 @@ function fmtKm(km){ return km < 1 ? Math.round(km*1000)+' m' : km.toFixed(1)+' k
  * One palette rather than two: the legend gradient and this ramp were three
  * different colours each, so the bar under the slider never quite matched
  * the dots it was explaining. Read once and cached -- getComputedStyle on
- * every one of 516 markers is not free. */
+ * every one of 516 markers is not free. Caching is safe across a theme
+ * change because the ramp is data, not theme: style.css sets it once, on
+ * :root, outside the theme blocks, so the map reads the same in each. */
 let rampStops = null;
 
 function reachRamp(){
@@ -60,9 +62,9 @@ function reachRamp(){
     const h = hex.replace('#', '');
     return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
   };
-  rampStops = [read('--reach-fast', '#39b6ff'),
-               read('--reach-mid', '#f0d33a'),
-               read('--reach-slow', '#b23a3a')];
+  rampStops = [read('--color-reach-fast', '#39b6ff'),
+               read('--color-reach-mid', '#f0d33a'),
+               read('--color-reach-slow', '#b23a3a')];
   return rampStops;
 }
 
@@ -253,7 +255,7 @@ async function planTrip(){
     routeLayer.clearLayers();
     renderItinerary(null);
     document.getElementById('optionList').innerHTML =
-      `<div class="cc-note" style="font-size:12px;color:#8fa3ad;">`
+      `<div class="cc-note">`
       + (plan ? `No trip found for that time.` : `The trip planner did not answer. Try again.`)
       + `</div>`;
     return;
@@ -270,7 +272,9 @@ async function planTrip(){
 /* Line colour, decided once. The map drew its polylines from one table and
  * the panel had no colours at all; now a badge in the list and the line on
  * the map are the same colour, which is what makes an option recognisable
- * without reading it. */
+ * without reading it. These are data, not theme -- each is the colour the
+ * operator gives the line -- so they stay the same in every page theme, like
+ * the rest of the map. */
 function lineColor(line){
   if(!line) return '#4a5a63';
   if(line.startsWith('Line 1')) return '#f0a93a';
@@ -283,9 +287,27 @@ function lineColor(line){
   return '#4fb6c4';                      /* streetcars */
 }
 
+/* The ink on a line badge, picked against the line's own colour: whichever
+ * of the dark ink and white reads better. One dark ink for every line left
+ * Line 4, YRT and GO at 3.2-3.6:1, under the 4.5:1 that WCAG AA asks of
+ * small text. */
+const BADGE_INK = ['#0d1418', '#ffffff'];
+function luminance(hex){
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b){
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+function inkOn(hex){
+  return contrast(BADGE_INK[0], hex) >= contrast(BADGE_INK[1], hex) ? BADGE_INK[0] : BADGE_INK[1];
+}
+
 function badge(line){
   const c = lineColor(line);
-  return `<span class="badge" style="background:${c};">${esc(shortLine(line))}</span>`;
+  return `<span class="badge" style="background:${c};color:${inkOn(c)};">${esc(shortLine(line))}</span>`;
 }
 
 function modeBadge(kind){

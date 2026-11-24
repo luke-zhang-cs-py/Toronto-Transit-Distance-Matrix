@@ -2,7 +2,9 @@
    static.css — the one thing the browser-only build adds to the page
    ---------------------------------------------------------------------------
    Loaded after style.css, and it adds rather than overrides: the two builds
-   should look like the same program, because they are.
+   should look like the same program, because they are. It reads the theme
+   tokens style.css defines, so it follows the page's theme with no block of
+   its own.
 
    The banner is deliberately not decorative. A page that computes travel
    times from a model and a page that computes them from a live feed look
@@ -11,21 +13,21 @@
    --------------------------------------------------------------------------- */
 
 .staticBanner {
-  margin: 14px 0 0;
-  padding: 10px 14px;
-  border: 1px solid var(--hair);
-  border-left: 3px solid var(--mid);
-  border-radius: 7px;
-  background: rgba(224, 192, 74, .05);
-  color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.6;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-notice);
+  border-radius: var(--radius-md);
+  background: var(--color-notice-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
   max-width: 820px;
 }
 
-.staticBanner b { color: var(--ink); font-weight: 600; }
-.staticBanner a { color: var(--accent); text-decoration: none; }
-.staticBanner a:hover { text-decoration: underline; }
+.staticBanner b { color: var(--color-text-primary); font-weight: var(--weight-semibold); }
+.staticBanner a { color: var(--color-accent); text-decoration: none; }
+.staticBanner a:hover { color: var(--color-accent-hover); text-decoration: underline; }
 
-#staticNote .hint a { color: var(--accent); text-decoration: none; }
-#staticNote .hint a:hover { text-decoration: underline; }
+#staticNote .hint a { color: var(--color-accent); text-decoration: none; }
+#staticNote .hint a:hover { color: var(--color-accent-hover); text-decoration: underline; }
