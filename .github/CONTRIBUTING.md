@@ -61,6 +61,21 @@ Do not assert on `plan()["options"][0]` expecting transit. Options are sorted
 by duration across every kind, so the first one is whichever is quickest,
 which is sometimes a car. Ask for the kind you mean.
 
+## Themes
+
+Every page opens dark (`class="theme-dark"` on `<html>`) and has a toggle to
+light. Colours are tokens: `static/css/style.css` for the app and its browser
+build, the `<style>` in `docs/index.html` for the write-up. A component reads
+a token, never a raw colour; the map's colours are data and sit outside the
+theme blocks. To add a theme, add one `.theme-<name>` block that sets every
+token and add `<name>` to `THEMES`. `tests/test_theming.py` then checks the
+block and every pairing for WCAG AA. Its browser half needs Playwright, and
+skips without it:
+
+```bash
+pip install playwright && python -m playwright install chromium
+```
+
 ## Conventions
 
 Comments explain *why*, especially where a number encodes a modelling

@@ -41,6 +41,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install flake8 pytest
+          # tests/test_theming.py loads each page in Chromium: with JavaScript
+          # off, through the theme toggle, and for a contrast scan of every
+          # visible text node. It skips without a browser, so without these
+          # two lines the guards would pass here by never running.
+          pip install playwright
+          python -m playwright install --with-deps chromium
 
       - name: Lint with flake8
         run: |
