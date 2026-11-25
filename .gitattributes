@@ -13,3 +13,5 @@
 *.zip binary
 *.joblib binary
 *.db binary
+*.woff2 binary
+*.gif binary
