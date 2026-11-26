@@ -21,6 +21,8 @@
     if (/^[a-z]+$/.test(saved)) document.documentElement.classList.replace('theme-dark', 'theme-' + saved);
   })();
 </script>
+<!-- Self-hosted type (DESIGN.md): no request leaves for a font service. -->
+<link rel="stylesheet" href="fonts.css">
 <style>
 /* ==========================================================================
    DESIGN TOKENS -- the write-up template shared by this family of pages.
@@ -33,29 +35,30 @@
    token in it, and add <name> to THEMES in the script at the bottom.
    Nothing else changes, and tests/test_theming.py checks the new block.
 
-   The colour blocks are the same in every copy of this template. Each text
-   pairing is at least 4.5:1 and each UI pairing at least 3:1, in both
-   themes. The old light palette failed twice: --ink-muted (#8d7a52) was
-   3.35:1 on the plane, now --color-text-subtle #665632; and --series
-   (#2a78d6) was 4.34:1 on the surface, now --color-accent #1f63b8.
-   --color-warning (amber) is a fill only, sub-3:1 by design, and always
-   sits beside a glyph and a word; it is never a text colour.
-   --color-text-on-warning is the glyph on that fill; it is this copy's one
-   addition to the shared block.
+   The thirteen contract tokens in each block are this repo's palette from
+   design/palettes.json ("Toronto Transit": sage dominant, cornflower
+   accent), verbatim; the rest are derived from those two and stay muted.
+   Each text pairing is at least 4.5:1 and each UI pairing at least 3:1, in
+   both themes. --color-warning (amber) is a fill behind a glyph and always
+   sits beside a word; --color-text-on-warning is the glyph on that fill.
    ========================================================================== */
 :root {
-  /* spacing: --space-N is N x 4px */
+  /* spacing: --space-N is N x 4px (DESIGN.md: an 8px rhythm, even N in new work) */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
-  --space-6: 24px; --space-7: 28px; --space-8: 32px; --space-11: 44px;
+  --space-6: 24px; --space-7: 28px; --space-8: 32px; --space-11: 44px; --space-16: 64px;
 
-  /* typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --text-2xs: 11px; --text-xs: 11.5px; --text-sm: 12px; --text-md: 12.5px; --text-lg: 13px;
-  --text-xl: 13.5px; --text-2xl: 14px; --text-body: 15px; --text-title: 23px; --text-figure: 27px;
-  --leading-tight: 1.12; --leading-body: 1.55; --leading-code: 1.7;
-  --weight-normal: 400; --weight-medium: 500; --weight-semibold: 600;
-  --tracking-tight: -0.2px; --tracking-wide: .02em; --tracking-caps: .06em;
+  /* typography -- self-hosted in fonts.css beside this page */
+  --font-display: "Bricolage Grotesque", sans-serif;
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  /* The design scale: each step 3x the one below. */
+  --text-sm: 13px; --text-base: 16px; --text-xl: 48px; --text-display: clamp(64px, 14vw, 144px);
+  /* Table cells, labels and code keep a smaller scale of their own. */
+  --text-2xs: 11px; --text-xs: 12px; --text-md: 13px; --text-lg: 14px; --text-figure: 27px;
+  --leading-display: .92; --leading-tight: 1.05; --leading-body: 1.55; --leading-code: 1.7;
+  /* Plex ships 400 and 600; Bricolage is set at 200 or 800, never between. */
+  --weight-normal: 400; --weight-semibold: 600; --weight-display-light: 200; --weight-display: 800;
+  --tracking-display: -.03em; --tracking-tight: -.01em; --tracking-wide: .02em; --tracking-caps: .06em;
 
   /* shape */
   --radius-xs: 3px; --radius-sm: 4px; --radius-md: 8px; --radius-lg: 10px;
@@ -65,30 +68,30 @@
    with no theme class or an unknown one; any .theme-* block wins over it. */
 :where(:root), .theme-dark {
   color-scheme: dark;
-  --color-bg: #0d0d0d; --color-surface: #1a1a19; --color-surface-subtle: #21201e;
-  --color-border: #383835; --color-border-strong: #6e6c66;
-  --color-text-primary: #ffffff; --color-text-muted: #c3c2b7; --color-text-subtle: #959389;
-  --color-accent: #4b93ea; --color-accent-hover: #7ab0f0; --color-accent-subtle: #14263c; --color-text-on-accent: #0d0d0d;
-  --color-danger: #f06a6a; --color-success: #3cc13c; --color-warning: #fab219;
-  --color-grid: #2c2c2a; --color-track: #2c2c2a;
-  --color-text-on-warning: #0d0d0d;
+  --color-bg: #131C13; --color-surface: #1C261C; --color-surface-subtle: #232F23;
+  --color-border: #303C30; --color-border-strong: #617161;
+  --color-text-primary: #E3EAE3; --color-text-muted: #AFBBAF; --color-text-subtle: #9BA99B;
+  --color-accent: #83B7E4; --color-accent-hover: #9FCDF5; --color-accent-subtle: #213546; --color-text-on-accent: #0E1C28;
+  --color-danger: #DF7F78; --color-success: #8CC79A; --color-warning: #D4AE68;
+  --color-grid: #2A352A; --color-track: #2A352A;
+  --color-text-on-warning: #131C13;
 }
 .theme-light {
   color-scheme: light;
-  --color-bg: #ece6d6; --color-surface: #fffdf7; --color-surface-subtle: #f6f1e4;
-  --color-border: #ded5bf; --color-border-strong: #7a7466;
-  --color-text-primary: #12161d; --color-text-muted: #3c4453; --color-text-subtle: #665632;
-  --color-accent: #1f63b8; --color-accent-hover: #174f94; --color-accent-subtle: #dfe9f7; --color-text-on-accent: #ffffff;
-  --color-danger: #b02e2e; --color-success: #0a6e0a; --color-warning: #fab219;
-  --color-grid: #ece6d6; --color-track: #ece6d6;
-  --color-text-on-warning: #12161d;
+  --color-bg: #F1F8F1; --color-surface: #F9FDF9; --color-surface-subtle: #E7F0E6;
+  --color-border: #D4DED4; --color-border-strong: #819181;
+  --color-text-primary: #202920; --color-text-muted: #516051; --color-text-subtle: #5F6E5E;
+  --color-accent: #3B6E97; --color-accent-hover: #28577C; --color-accent-subtle: #D2E8FB; --color-text-on-accent: #F5FBFF;
+  --color-danger: #A83634; --color-success: #356B40; --color-warning: #D9B56C;
+  --color-grid: #DCE5DC; --color-track: #DCE5DC;
+  --color-text-on-warning: #202920;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 .viz-root {
   padding: var(--space-8) var(--space-6) var(--space-11);
-  font: var(--text-body)/var(--leading-body) var(--font-sans);
+  font: var(--text-base)/var(--leading-body) var(--font-sans);
   background: var(--color-bg); color: var(--color-text-primary);
   min-height: 100vh;
 }
@@ -98,8 +101,14 @@ main { max-width: 980px; margin: 0 auto; }
   margin: 0 0 var(--space-2); font: var(--weight-normal) var(--text-sm) var(--font-mono); color: var(--color-text-subtle);
   letter-spacing: var(--tracking-wide);
 }
-h1 { font-size: var(--text-title); margin: 0 0 var(--space-1); letter-spacing: var(--tracking-tight); }
-.lede { color: var(--color-text-muted); margin: 0; font-size: var(--text-body); max-width: 68ch; }
+/* The one headline: display type at its lightest, against the heavy section
+ * headings below, so the contrast is weight rather than another box. */
+h1 {
+  font: var(--weight-display-light) var(--text-display)/var(--leading-display) var(--font-display);
+  letter-spacing: var(--tracking-display); margin: var(--space-2) 0 var(--space-6);
+  overflow-wrap: break-word;
+}
+.lede { color: var(--color-text-muted); margin: 0; font-size: var(--text-base); max-width: 68ch; }
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
 .controls { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 button, .btn {
@@ -118,17 +127,20 @@ button[aria-pressed="true"] { border-color: var(--color-accent); color: var(--co
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); gap: var(--space-3); margin: var(--space-6) 0 var(--space-3); }
 .tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); }
 .tile .k { display: block; color: var(--color-text-muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: var(--tracking-caps); }
-.tile .v { display: block; margin-top: 3px; font: var(--weight-semibold) var(--text-figure)/var(--leading-tight) var(--font-sans); font-variant-numeric: tabular-nums; }
+.tile .v { display: block; margin-top: 3px; font: var(--weight-semibold) var(--text-figure)/var(--leading-tight) var(--font-mono); font-variant-numeric: tabular-nums; }
 .tile .n { display: block; margin-top: 2px; color: var(--color-text-subtle); font-size: var(--text-sm); }
 
 .note { color: var(--color-text-subtle); font-size: var(--text-lg); max-width: 80ch; margin: var(--space-3) 0 0; }
 
 /* ---------------------------------------------------------------- panels */
 .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-top: var(--space-6); }
-.panel h2 { margin: 0 0 2px; font-size: var(--text-body); }
-.panel h3 { margin: var(--space-5) 0 var(--space-2); font-size: var(--text-lg); color: var(--color-text-muted); }
+.panel h2 {
+  margin: 0 0 var(--space-2); font: var(--weight-display) var(--text-xl)/var(--leading-tight) var(--font-display);
+  letter-spacing: var(--tracking-tight);
+}
+.panel h3 { margin: var(--space-5) 0 var(--space-2); font: var(--weight-display) var(--text-base) var(--font-display); color: var(--color-text-muted); }
 .panel .sub { margin: 0 0 var(--space-4); color: var(--color-text-muted); font-size: var(--text-lg); max-width: 76ch; }
-.panel p { font-size: var(--text-2xl); color: var(--color-text-muted); max-width: 76ch; }
+.panel p { font-size: var(--text-base); color: var(--color-text-muted); max-width: 76ch; }
 .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: var(--space-6); }
 
 /* Thin marks on a recessive track, 4px rounding on the data end only so the
@@ -141,7 +153,7 @@ button[aria-pressed="true"] { border-color: var(--color-accent); color: var(--co
 .bar .lab { font: var(--weight-normal) var(--text-md) var(--font-mono); color: var(--color-text-muted); }
 .bar .rail { position: relative; height: 12px; background: var(--color-track); border-radius: var(--radius-xs); }
 .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--color-accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-.bar .val { text-align: right; font: var(--weight-medium) var(--text-sm) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
+.bar .val { text-align: right; font: var(--weight-normal) var(--text-sm) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
 .bar:hover .rail { outline: 2px solid var(--color-border); outline-offset: 2px; }
 
 /* ----------------------------------------------------------------- table */
@@ -163,9 +175,9 @@ pre {
 
 /* Numbered steps. */
 .flow { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-3); }
-.flow li { display: grid; grid-template-columns: 26px 1fr; gap: var(--space-3); font-size: var(--text-xl); color: var(--color-text-muted); }
+.flow li { display: grid; grid-template-columns: 26px 1fr; gap: var(--space-3); font-size: var(--text-lg); color: var(--color-text-muted); }
 .step {
-  font: var(--weight-medium) var(--text-2xs) var(--font-mono); color: var(--color-accent);
+  font: var(--weight-normal) var(--text-2xs) var(--font-mono); color: var(--color-accent);
   border: 1px solid var(--color-border); border-radius: var(--radius-sm);
   text-align: center; padding: 1px 0; height: 20px;
 }
@@ -173,7 +185,7 @@ pre {
 /* Status. Never colour alone: each carries a glyph and a word. Amber is a
  * fill, never a text colour -- under 3:1 on either surface -- so a warning's
  * word stays in the text colour and its glyph sits on an amber chip. */
-.flag { display: inline-flex; align-items: center; gap: var(--space-1); font: var(--weight-medium) var(--text-xs) var(--font-mono); white-space: nowrap; }
+.flag { display: inline-flex; align-items: center; gap: var(--space-1); font: var(--weight-normal) var(--text-xs) var(--font-mono); white-space: nowrap; }
 .flag .g { font-size: var(--text-sm); }
 .flag.good { color: var(--color-success); }
 .flag.warn { color: var(--color-text-primary); }
@@ -194,11 +206,14 @@ footer a { color: inherit; }
   .viz-root { padding-left: var(--space-4); padding-right: var(--space-4); }
   th, td { padding: var(--space-2) var(--space-1); }
   .flag { white-space: normal; }
+  /* Plex Mono is wider than the system mono it replaced: an identifier in a
+   * cell may break rather than push the table past the screen. */
+  td code, td.mono { overflow-wrap: anywhere; }
 }
 </style>
 </head>
 
-<body class="viz-root" data-palette="#4b93ea">
+<body class="viz-root" data-palette="#83B7E4">
 <main>
 
 <div class="head">
@@ -399,7 +414,7 @@ footer a { color: inherit; }
 /* Every number on this page is read from here, so the tiles, the charts and
  * the table cannot drift apart.
  *
- * Measured on 24 November 2026 in the repository: `pytest -q --cov` for the
+ * Measured on 26 November 2026 in the repository: `pytest -q --cov` for the
  * statements and what is uncovered, `wc -l` for length, `pytest
  * --collect-only -q` for the test counts, and the graph figures by importing
  * the network package. Not estimated. tests/test_published_figures.py checks
@@ -414,8 +429,8 @@ var MODULES = [
   { name: 'tools/refresh_figures.py',  lines: 264, stmts: 139, missed:  0, does: 'rewrites the figures on this page from a fresh run' },
   { name: 'feeds/schedule.py',         lines: 325, stmts: 137, missed:  0, does: 'when the next one actually leaves, from the index' },
   { name: 'app.py',                    lines: 310, stmts: 124, missed:  0, does: 'the HTTP surface; six endpoints and nothing else' },
+  { name: 'tools/build_static.py',     lines: 401, stmts: 111, missed:  0, does: 'the browser build in docs/app, checked against the Python' },
   { name: 'tools/project_schedule.py', lines: 220, stmts: 111, missed:  0, does: 'four years past the feed, labelled as a projection' },
-  { name: 'tools/build_static.py',     lines: 391, stmts: 110, missed:  0, does: 'the browser build in docs/app, checked against the Python' },
   { name: 'trips/routing.py',          lines: 209, stmts:  99, missed:  0, does: 'Dijkstra reachability — the heat map' },
   { name: 'network/regional.py',       lines: 127, stmts:  58, missed:  0, does: 'YRT/Viva, MiWay, GO and the highway-corridor hubs' },
   { name: 'feeds/gtfs.py',             lines: 149, stmts:  52, missed:  0, does: 'reads the GTFS archive; shared by both build tools' },
@@ -453,7 +468,7 @@ var TESTS = [
   { file: 'test_itinerary_edges.py',   n: 11, of: 'trips at the edges of what the planner can answer' }
 ];
 
-var TEST_LINES = 4976;
+var TEST_LINES = 5001;
 
 /* Which interpreter produced the statement counts above. It matters: coverage
  * counts a `with` block or a multi-line call differently between versions, so
@@ -805,7 +820,7 @@ el('tableBtn').addEventListener('click', function () {
 });
 
 el('footNote').textContent =
-  'Figures measured on 24 November 2026 in the repository with pytest ' +
+  'Figures measured on 26 November 2026 in the repository with pytest ' +
   '--cov, wc -l and pytest --collect-only, not estimated — and the module ' +
   'and test figures are checked against a fresh measurement by ' +
   'tests/test_published_figures.py, because a page like this goes stale the ' +
