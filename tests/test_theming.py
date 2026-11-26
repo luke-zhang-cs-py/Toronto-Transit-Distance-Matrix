@@ -94,8 +94,9 @@ APP_TEXT = (
     [(fg, bg) for fg in ("text-primary", "text-muted")
      for bg in ("bg", "surface", "surface-subtle", "surface-selected")]
     + [(fg, bg) for fg in ("accent",)
-       for bg in ("bg", "surface", "surface-subtle", "surface-selected",
-                  "accent-subtle", "accent-subtle-hover")]
+       for bg in ("bg", "surface", "surface-subtle", "surface-selected")]
+    + [("text-primary", "accent-subtle"),            # a button's label on its fill,
+       ("text-primary", "accent-subtle-hover")]      # and on its hover
     + [("text-subtle", "surface"), ("text-subtle", "surface-subtle"),
        ("text-subtle", "surface-selected"),          # the arrows between badges
        ("text-muted", "notice-subtle"), ("text-primary", "notice-subtle"),
@@ -106,10 +107,15 @@ APP_TEXT = (
        ("text-on-accent", "accent"), ("danger", "bg"), ("danger", "surface")]
 )
 APP_UI = (
-    [("border-strong", bg) for bg in ("bg", "surface", "surface-subtle", "surface-selected")]
+    # The edge of a control, on every surface a control sits on or is
+    # filled with: buttons, fields, segments, an itinerary dot, a compass tick.
+    [("border-control", bg) for bg in ("bg", "surface", "surface-subtle", "surface-selected")]
+    + [("border-strong", "bg"), ("border-strong", "surface")]   # the contract's own promise
     + [("accent", "bg"), ("accent", "surface"), ("accent", "surface-subtle"),   # focus, chosen option
        ("warning", "surface"),                       # a wait step's dot
-       ("compass-north", "surface-subtle")]          # the needle
+       ("compass-north", "surface-subtle"),          # the needle
+       ("neutral", "surface-subtle"),                # the compass hub
+       ("notice", "notice-subtle")]                  # the browser-build banner's rule
 )
 WRITEUP_TEXT = (
     [(fg, bg) for fg in ("text-primary", "text-muted", "text-subtle")
@@ -158,6 +164,10 @@ def test_every_theme_sets_the_same_tokens(page):
     default = set(blocks.get(themes[0], {}))
     missing = CONTRACT - default
     assert not missing, "the default theme lacks contract tokens: %s" % sorted(missing)
+    # DESIGN.md: no banned face, not even as a fallback a stack ends on.
+    banned = re.findall(r"(?<![\w-])(Inter|Roboto|Open Sans|Arial|Helvetica|Segoe UI|system-ui"
+                        r"|-apple-system|BlinkMacSystemFont|ui-monospace)(?![\w-])", css())
+    assert not banned, "banned fonts in the %s styles: %s" % (page, sorted(set(banned)))
     for name in themes:
         assert name in blocks, "THEMES names %r but there is no .theme-%s block" % (name, name)
         assert set(blocks[name]) == default, (
@@ -177,11 +187,16 @@ def test_the_dark_block_is_also_the_no_class_fallback(page):
 @pytest.mark.parametrize("path", [TEMPLATE, APP_PAGE, WRITEUP],
                          ids=["template", "docs-app", "writeup"])
 def test_every_page_opens_dark_in_its_markup(path):
+    """Dark from the class in <html>, and set in the self-hosted type: a
+    fonts.css linked in <head>, and nothing fetched from a font service."""
     page = read(path)
     assert re.search(r'<html lang="en" class="theme-dark">', page)
     assert "prefers-color-scheme" not in page, "theme follows the system again"
-    assert "localStorage.getItem('theme')" in page.split("</head>")[0], (
+    head = page.split("</head>")[0]
+    assert "localStorage.getItem('theme')" in head, (
         "no restore in <head>, so a saved theme flashes dark first")
+    assert re.search(r'<link rel="stylesheet" href="[^"]*fonts\.css[^"]*">', head), "no fonts.css"
+    assert "fonts.googleapis" not in page and "fonts.gstatic" not in page
 
 
 def pairs_for(page):
@@ -426,6 +441,16 @@ def open_states(page, name):
 def test_every_visible_text_meets_aa_in_every_theme(open_page, name):
     page = open_page(name)
     open_states(page, name)
+    # The scan is only as good as the type it measures: the self-hosted
+    # faces have to be the ones on screen, not a fallback.
+    # fonts.check() alone is true for a family nothing declares, so each
+    # family must also have a face that actually finished loading.
+    missing = page.evaluate("""async () => { await document.fonts.ready;
+        const done = new Set([...document.fonts].filter(f => f.status === 'loaded')
+                                                .map(f => f.family.replace(/"/g, '')));
+        return ['Bricolage Grotesque', 'IBM Plex Sans', 'IBM Plex Mono']
+          .filter(f => !done.has(f) || !document.fonts.check('16px "' + f + '"')); }""")
+    assert not missing, "fonts that did not load: %s" % missing
     for theme in page.evaluate("THEMES"):
         page.evaluate("""name => { const root = document.documentElement;
             root.className = root.className.replace(/(^|\\s)theme-\\S+/g, '').trim() + ' theme-' + name; }""",
