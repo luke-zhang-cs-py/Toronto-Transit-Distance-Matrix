@@ -17,8 +17,8 @@ let routeLayer = L.layerGroup().addTo(map);
 let radarOn = true;
 const heatLayer = L.heatLayer([], {
   radius: 30, blur: 34, maxZoom: 16, minOpacity: 0.06,
-  gradient: {0.15:'rgba(79,182,255,0.22)', 0.4:'rgba(79,182,255,0.32)',
-             0.65:'rgba(240,211,58,0.32)', 0.85:'rgba(178,58,58,0.32)', 1:'rgba(178,58,58,0.4)'}
+  gradient: {0.15:'rgba(125,180,230,0.22)', 0.4:'rgba(125,180,230,0.32)',
+             0.65:'rgba(214,181,98,0.32)', 0.85:'rgba(201,102,94,0.32)', 1:'rgba(201,102,94,0.4)'}
 }).addTo(map);
 
 /* Whether the numbers on screen came from the live feed or the fixed
@@ -63,9 +63,9 @@ function reachRamp(){
     const h = hex.replace('#', '');
     return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
   };
-  rampStops = [read('--color-reach-fast', '#39b6ff'),
-               read('--color-reach-mid', '#f0d33a'),
-               read('--color-reach-slow', '#b23a3a')];
+  rampStops = [read('--color-reach-fast', '#7DB4E6'),
+               read('--color-reach-mid', '#D6B562'),
+               read('--color-reach-slow', '#C9665E')];
   return rampStops;
 }
 
@@ -155,11 +155,11 @@ function paintNodes(){
      * names are GTFS stop names from a file this repo did not write. Every
      * other name on the page already goes through esc(). */
     if(t<=cutoff) count++;
-    const color = t>cutoff ? '#2a2e33' : lerpColor(Math.min(1,t/cutoff));
+    const color = t>cutoff ? '#2B342B' : lerpColor(Math.min(1,t/cutoff));
     const r = t>cutoff ? 4 : 7;
     const n = NETWORK.nodes[id];
     if(!nodeMarkers[id]){
-      nodeMarkers[id] = L.circleMarker([n.lat,n.lon], {radius:r, color:'#080a0d', weight:1,
+      nodeMarkers[id] = L.circleMarker([n.lat,n.lon], {radius:r, color:'#0B110B', weight:1,
         fillColor:color, fillOpacity:0.9}).addTo(map).bindTooltip(`${esc(n.name)}: ${t.toFixed(1)} min`);
     } else {
       nodeMarkers[id].setStyle({fillColor:color, radius:r, fillOpacity:0.9, opacity:1});
@@ -180,7 +180,7 @@ async function setOrigin(lat, lon){
   originLatLng = {lat, lon};
   if(originMarker) map.removeLayer(originMarker);
   originMarker = L.circleMarker([lat,lon], {radius:9, color:'#fff', weight:2,
-    fillColor:'#39b6ff', fillOpacity:1}).addTo(map);
+    fillColor:'#7DB4E6', fillOpacity:1}).addTo(map);
 
   const res = await fetch('/api/reach', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({lat, lon})});
@@ -206,7 +206,7 @@ async function setDestination(lat, lon){
   document.getElementById('tripCard').style.display='block';
   if(destMarker) map.removeLayer(destMarker);
   destMarker = L.circleMarker([lat,lon], {radius:9, color:'#fff', weight:2,
-    fillColor:'#b23a3a', fillOpacity:1}).addTo(map);
+    fillColor:'#C9665E', fillOpacity:1}).addTo(map);
   Object.values(nodeMarkers).forEach(m=>m.setStyle({fillOpacity:0.25, opacity:0.4}));
 
   lastTrip = {olat: originLatLng.lat, olon: originLatLng.lon, dlat: lat, dlon: lon};
@@ -277,14 +277,14 @@ async function planTrip(){
  * operator gives the line -- so they stay the same in every page theme, like
  * the rest of the map. */
 function lineColor(line){
-  if(!line) return '#4a5a63';
+  if(!line) return '#5A6A5A';
   if(line.startsWith('Line 1')) return '#f0a93a';
   if(line.startsWith('Line 2')) return '#3aa65c';
   if(line.startsWith('Line 4')) return '#a8438f';
-  if(line.startsWith('YRT')) return '#8e44ad';
+  if(line.startsWith('YRT')) return '#2d6fa8';   /* Viva blue: no purple on the page */
   if(line.startsWith('MiWay')) return '#d97706';
   if(line.startsWith('GO')) return '#0f7a6c';
-  if(line === 'Transfer') return '#4a5a63';
+  if(line === 'Transfer') return '#5A6A5A';
   return '#4fb6c4';                      /* streetcars */
 }
 
@@ -292,7 +292,7 @@ function lineColor(line){
  * of the dark ink and white reads better. One dark ink for every line left
  * Line 4, YRT and GO at 3.2-3.6:1, under the 4.5:1 that WCAG AA asks of
  * small text. */
-const BADGE_INK = ['#0d1418', '#ffffff'];
+const BADGE_INK = ['#0E1A0E', '#ffffff'];
 function luminance(hex){
   const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
@@ -401,9 +401,9 @@ function drawOption(index){
     if(leg.type === 'transit'){
       L.polyline(pts, {color: lineColor(leg.line), weight:6, opacity:0.95}).addTo(routeLayer);
     } else if(leg.type === 'drive'){
-      L.polyline(pts, {color:'#d97706', weight:4, dashArray:'8 6', opacity:0.9}).addTo(routeLayer);
+      L.polyline(pts, {color:'#D9A35A', weight:4, dashArray:'8 6', opacity:0.9}).addTo(routeLayer);
     } else if(leg.type === 'walk' || leg.type === 'transfer'){
-      L.polyline(pts, {color:'#dfe6ea', weight:3,
+      L.polyline(pts, {color:'#DCE4DC', weight:3,
         dashArray: leg.type === 'walk' ? '2 7' : '1 5', opacity:0.85}).addTo(routeLayer);
     }
   });

@@ -18,8 +18,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Self-hosted type (DESIGN.md): no request leaves for a font service. -->
+<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -76,7 +76,7 @@
         <button id="radarBtn">Heat radar: ON</button>
         <div class="row" style="margin-top:var(--space-3);">
           <span class="label">Shade level</span>
-          <span class="val" id="valShade" style="font-size:var(--text-md);">60%</span>
+          <span class="val" id="valShade" style="font-size:var(--text-ui);">60%</span>
         </div>
         <input type="range" id="shadeSlider" min="10" max="100" step="5" value="60">
       </div>

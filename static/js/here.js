@@ -59,12 +59,12 @@ function onFix(pos) {
   if (hereMarker) map.removeLayer(hereMarker);
   if (hereAccuracyRing) map.removeLayer(hereAccuracyRing);
   hereMarker = L.circleMarker([lat, lon], {
-    radius: 7, color: '#fff', weight: 2, fillColor: '#4fb6c4', fillOpacity: 1,
+    radius: 7, color: '#fff', weight: 2, fillColor: '#7CC2B0', fillOpacity: 1,
   }).addTo(map);
   /* The accuracy is drawn, not only stated. A ±2 km fix reads as precise as
      a number and is obviously useless as a circle over half the city. */
   hereAccuracyRing = L.circle([lat, lon], {
-    radius: accuracy, color: '#4fb6c4', weight: 1, fillOpacity: 0.07,
+    radius: accuracy, color: '#7CC2B0', weight: 1, fillOpacity: 0.07,
   }).addTo(map);
   map.setView([lat, lon], accuracy > 1000 ? 12 : 14);
 

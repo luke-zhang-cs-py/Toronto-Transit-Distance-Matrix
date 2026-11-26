@@ -69,8 +69,12 @@ build, the `<style>` in `docs/index.html` for the write-up. A component reads
 a token, never a raw colour; the map's colours are data and sit outside the
 theme blocks. To add a theme, add one `.theme-<name>` block that sets every
 token and add `<name>` to `THEMES`. `tests/test_theming.py` then checks the
-block and every pairing for WCAG AA. Its browser half needs Playwright, and
-skips without it:
+block and every pairing for WCAG AA. The palette, type and spacing rules are
+in [DESIGN.md](../DESIGN.md); the thirteen contract colours come verbatim from
+the portfolio's `design/palettes.json`, and the fonts are self-hosted --
+`static/fonts.css` for the app, `docs/fonts.css` for the write-up and the
+browser build -- so no page asks a font service for anything. The theme
+tests' browser half needs Playwright, and skips without it:
 
 ```bash
 pip install playwright && python -m playwright install chromium

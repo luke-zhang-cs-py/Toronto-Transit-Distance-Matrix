@@ -231,6 +231,16 @@ def page(template):
         '<link rel="stylesheet" href="css/static.css">',
         "point the stylesheet at the copied CSS")
 
+    # The fonts are not copied into docs/app/: the write-up beside it already
+    # serves them from docs/fonts.css, and one copy on Pages is one to keep
+    # current. A relative URL, so it works from file:// as well.
+    text = replace_once(
+        text,
+        "<link rel=\"stylesheet\" href=\"{{ url_for('static', "
+        "filename='fonts.css') }}\">",
+        '<link rel="stylesheet" href="../fonts.css">',
+        "point the fonts at the write-up's copy")
+
     text = replace_once(
         text,
         "<h1>Toronto Transit Reach<em>Python backend</em></h1>",

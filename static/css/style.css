@@ -18,18 +18,25 @@
    every token and that every pairing in it meets WCAG AA.
    =========================================================================== */
 :root{
-  /* spacing: --space-N is N x 4px */
+  /* spacing: --space-N is N x 4px (DESIGN.md: an 8px rhythm, even N in new work) */
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
-  --space-6:24px; --space-7:28px; --space-10:40px;
+  --space-6:24px; --space-7:28px; --space-8:32px; --space-10:40px;
 
-  /* typography */
-  --font-sans:'Inter',system-ui,sans-serif;
-  --font-mono:'IBM Plex Mono',monospace;
-  --text-2xs:11px; --text-xs:11.5px; --text-sm:12px; --text-base:12.5px; --text-md:13px;
-  --text-lg:13.5px; --text-xl:14px; --text-2xl:15px; --text-3xl:21px;
-  --leading-snug:1.45; --leading-normal:1.5; --leading-body:1.6; --leading-relaxed:1.7;
-  --weight-medium:500; --weight-semibold:600; --weight-bold:700;
-  --tracking-tight:-.01em; --tracking-caps:.06em; --tracking-label:.08em;
+  /* typography -- self-hosted in static/fonts.css (docs/fonts.css for the
+     browser build); no stack names a system or banned face, so a font that
+     fails to load falls straight to the generic family. */
+  --font-display:"Bricolage Grotesque",sans-serif;
+  --font-sans:"IBM Plex Sans",sans-serif;
+  --font-mono:"IBM Plex Mono",monospace;
+  /* The design scale, 3x a step: headings and the standfirst use it. */
+  --text-sm:13px; --text-base:16px; --text-xl:48px; --text-display:clamp(64px,14vw,144px);
+  /* The working panel keeps a dense scale of its own, so a 300px side panel
+     still holds a trip: these never go on a heading. */
+  --text-2xs:11px; --text-xs:12px; --text-ui:13px; --text-ui-lg:15px;
+  --leading-tight:1; --leading-snug:1.45; --leading-normal:1.5; --leading-body:1.6; --leading-relaxed:1.7;
+  /* Plex ships 400 and 600; Bricolage is set at 200 or 800, never between. */
+  --weight-regular:400; --weight-semibold:600; --weight-display-light:200; --weight-display:800;
+  --tracking-tight:-.02em; --tracking-caps:.06em; --tracking-label:.08em;
 
   /* shape and motion */
   --radius-xs:3px; --radius-sm:4px; --radius-md:7px; --radius-lg:10px; --radius-full:999px;
@@ -38,57 +45,63 @@
 
 /* ---- themes. :where(:root) has no specificity, so it is only the fallback
    for an <html> with no theme class, or an unknown one; any .theme-* block
-   wins over it. The dark theme is the page as it always looked. */
+   wins over it. Dark is the default the markup opens in. */
 :where(:root),.theme-dark{
   color-scheme:dark;
-  --color-bg:#0d1117;
-  --color-surface:#131820;            /* the side panel */
-  --color-surface-subtle:#0e1418;     /* fields, option rows, segments, the compass face */
-  --color-surface-selected:#16232b;   /* the chosen option and the chosen segment */
-  --color-border:#1f2630;             /* hairlines between sections */
-  --color-border-strong:#607080;      /* the edge of a control: 3:1 on every surface */
-  --color-text-primary:#e6edf3;
-  --color-text-muted:#8b96a5;
-  --color-text-subtle:#7d8a96;        /* the arrows between line badges */
-  --color-accent:#4da3ff;
-  --color-accent-hover:#7ab8ff;
-  --color-accent-subtle:#1a293b;      /* button fill: what rgba(77,163,255,.12) made on the panel */
-  --color-accent-subtle-hover:#1f344d;
-  --color-text-on-accent:#0d1117;
-  --color-danger:#df6a5e;
-  --color-success:#4fd1b4;  --color-success-subtle:#123a33;   /* the "live" tag */
-  --color-warning:#d9a441;  --color-warning-subtle:#3a2b12;   /* the "est" tag, a wait step */
-  --color-neutral:#8fa3ad;  --color-neutral-subtle:#1b2a33;   /* the "sched" tag, notes */
-  --color-notice:#e0c04a;   --color-notice-subtle:#181a1a;    /* the browser-build banner */
-  --color-track:#25333b;              /* the itinerary's spine */
-  --color-compass-north:#b23a3a;      /* red north, as on a real compass */
-  --color-compass-idle:#4a5a63;       /* the tail, and a needle with nothing live */
+  /* The thirteen contract tokens: design/palettes.json, "Toronto Transit"
+     (sage dominant, cornflower accent), verbatim. */
+  --color-bg:#131C13;
+  --color-surface:#1C261C;            /* the side panel */
+  --color-surface-subtle:#232F23;     /* fields, option rows, segments, the compass face */
+  --color-border:#303C30;             /* hairlines between sections */
+  --color-border-strong:#617161;      /* 3:1 on the page and the panel */
+  --color-text-primary:#E3EAE3;
+  --color-text-muted:#AFBBAF;
+  --color-text-subtle:#9BA99B;        /* the arrows between line badges */
+  --color-accent:#83B7E4;
+  --color-accent-hover:#9FCDF5;
+  --color-accent-subtle:#213546;      /* button fill */
+  --color-text-on-accent:#0E1C28;
+  --color-danger:#DF7F78;
+  /* This page's own, derived from the sage and the cornflower above. */
+  --color-surface-selected:#1E2B2E;   /* the chosen option and the chosen segment */
+  --color-border-control:#6E7E6E;     /* the edge of a control: 3:1 on every surface, the
+                                         fields' own fill included, which border-strong is not */
+  --color-accent-subtle-hover:#2A4259;
+  --color-success:#8CC79A;  --color-success-subtle:#1D3323;   /* the "live" tag */
+  --color-warning:#D4AE68;  --color-warning-subtle:#362D18;   /* the "est" tag, a wait step */
+  --color-neutral:#A3B1A3;  --color-neutral-subtle:#263226;   /* the "sched" tag, notes */
+  --color-notice:#C9B067;   --color-notice-subtle:#1A2317;    /* the browser-build banner */
+  --color-track:#2E3A2E;              /* the itinerary's spine */
+  --color-compass-north:#D0756E;      /* red north, as on a real compass, muted */
+  --color-compass-idle:#5F6F5F;       /* the tail, and a needle with nothing live */
   --icon-sun:inline; --icon-moon:none;   /* the toggle shows where it will take you */
 }
 .theme-light{
   color-scheme:light;
-  --color-bg:#f6f8fa;
-  --color-surface:#ffffff;
-  --color-surface-subtle:#f0f3f6;
-  --color-surface-selected:#e7f0fb;
-  --color-border:#d8dee4;
-  --color-border-strong:#818b96;
-  --color-text-primary:#1f2328;
-  --color-text-muted:#59636e;
-  --color-text-subtle:#636c76;
-  --color-accent:#0860ca;
-  --color-accent-hover:#0550ae;
-  --color-accent-subtle:#ddeeff;
-  --color-accent-subtle-hover:#cce4ff;
-  --color-text-on-accent:#ffffff;
-  --color-danger:#cf222e;
-  --color-success:#1a7f37;  --color-success-subtle:#dafbe1;
-  --color-warning:#9a6700;  --color-warning-subtle:#fff8c5;
-  --color-neutral:#57606a;  --color-neutral-subtle:#eaeef2;
-  --color-notice:#d4a72c;   --color-notice-subtle:#fffbea;
-  --color-track:#d0d7de;
-  --color-compass-north:#b23a3a;
-  --color-compass-idle:#8c959f;
+  --color-bg:#F1F8F1;
+  --color-surface:#F9FDF9;
+  --color-surface-subtle:#E7F0E6;
+  --color-border:#D4DED4;
+  --color-border-strong:#819181;
+  --color-text-primary:#202920;
+  --color-text-muted:#516051;
+  --color-text-subtle:#5F6E5E;
+  --color-accent:#3B6E97;
+  --color-accent-hover:#28577C;
+  --color-accent-subtle:#D2E8FB;
+  --color-text-on-accent:#F5FBFF;
+  --color-danger:#A83634;
+  --color-surface-selected:#E5EFF4;
+  --color-border-control:#768676;
+  --color-accent-subtle-hover:#C1DBF3;
+  --color-success:#356B40;  --color-success-subtle:#DAEEDC;
+  --color-warning:#7F5D1C;  --color-warning-subtle:#F5EAD2;
+  --color-neutral:#536253;  --color-neutral-subtle:#E2EBE2;
+  --color-notice:#94762A;   --color-notice-subtle:#F7F6E6;
+  --color-track:#D4DED4;
+  --color-compass-north:#A8443F;
+  --color-compass-idle:#8D9B8D;
   --icon-sun:none; --icon-moon:inline;
 }
 
@@ -101,12 +114,13 @@
    the page's tokens, because they sit on the map, not on the page.
    app.js reads the three --color-reach-* values once, at first paint. */
 :root{
-  --color-reach-fast:#39b6ff; --color-reach-mid:#f0d33a; --color-reach-slow:#b23a3a;
-  --color-map-bg:#080a0d;
-  --color-map-overlay:rgba(13,17,23,.9);
-  --color-map-border:#1f2630;
-  --color-map-text:#e6edf3;
-  --color-map-accent:#4da3ff;
+  /* cornflower, amber, muted red: fast to slow, drawn on the dark tiles */
+  --color-reach-fast:#7DB4E6; --color-reach-mid:#D6B562; --color-reach-slow:#C9665E;
+  --color-map-bg:#0B110B;
+  --color-map-overlay:rgba(19,28,19,.9);
+  --color-map-border:#303C30;
+  --color-map-text:#E3EAE3;
+  --color-map-accent:#83B7E4;
 }
 
   *{box-sizing:border-box;}
@@ -116,17 +130,19 @@
   .wrap{max-width:1180px;margin:0 auto;padding:var(--space-7) var(--space-6) var(--space-10);}
 
   header{margin-bottom:var(--space-6);}
-  h1{font-size:var(--text-3xl);font-weight:var(--weight-semibold);margin:0 0 var(--space-2);
-    letter-spacing:var(--tracking-tight);}
-  h1 em{font-style:normal;color:var(--color-text-muted);font-weight:var(--weight-medium);
-    font-size:var(--text-md);font-family:var(--font-mono);margin-left:var(--space-2);}
-  .sub{color:var(--color-text-muted);font-size:var(--text-lg);max-width:660px;line-height:var(--leading-body);}
+  /* The name in heavy display type, the build it is in as mono meta. */
+  h1{font-family:var(--font-display);font-size:var(--text-xl);font-weight:var(--weight-display);
+    line-height:var(--leading-tight);margin:0 0 var(--space-4);letter-spacing:var(--tracking-tight);}
+  h1 em{font-style:normal;color:var(--color-text-muted);font-weight:var(--weight-regular);
+    font-size:var(--text-sm);font-family:var(--font-mono);letter-spacing:0;margin-left:var(--space-2);
+    vertical-align:middle;}
+  .sub{color:var(--color-text-muted);font-size:var(--text-base);max-width:660px;line-height:var(--leading-body);}
 
   /* The theme toggle. Icon-only, so its name is in aria-label, which the
      script keeps saying where the next click goes. */
   .themeBtn{float:right;width:auto;margin:0 0 var(--space-2) var(--space-4);padding:var(--space-2);
     line-height:0;background:var(--color-surface);color:var(--color-text-muted);
-    border:1px solid var(--color-border-strong);}
+    border:1px solid var(--color-border-control);}
   .themeBtn:hover{background:var(--color-surface);color:var(--color-text-primary);}
   .themeBtn svg{width:16px;height:16px;}
   .themeBtn .sun{display:var(--icon-sun);}
@@ -148,45 +164,54 @@
     border-radius:var(--radius-lg);overflow:hidden;}
   .section{padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--color-border);}
   .section:last-child{border-bottom:none;}
-  .section h2{margin:0 0 var(--space-3);font-size:var(--text-2xs);letter-spacing:var(--tracking-label);
-    text-transform:uppercase;color:var(--color-text-muted);font-weight:var(--weight-semibold);}
+  /* A panel heading is a label, not a headline: display type, but at the
+     panel's own size so the side panel still holds a trip. */
+  .section h2{margin:0 0 var(--space-2);font-family:var(--font-display);font-size:var(--text-sm);
+    letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--color-text-muted);
+    font-weight:var(--weight-display);}
 
   .row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);}
   .row + input[type=range]{margin-top:var(--space-3);}
-  .label{font-size:var(--text-base);color:var(--color-text-muted);}
+  .label{font-size:var(--text-ui);color:var(--color-text-muted);}
   .val{font-family:var(--font-mono);color:var(--color-accent);font-weight:var(--weight-semibold);
-    font-size:var(--text-2xl);}
+    font-size:var(--text-ui-lg);font-variant-numeric:tabular-nums;}
 
   input[type=range]{width:100%;accent-color:var(--color-accent);height:4px;}
 
   .legend{height:6px;border-radius:var(--radius-xs);margin-top:var(--space-3);
     background:linear-gradient(90deg,var(--color-reach-fast),var(--color-reach-mid),var(--color-reach-slow));}
-  /* Numbers, so IBM Plex Mono at 11.5px like every other number in the
-     panel -- .mins, .itin .when, .itin .sub. It was 10px Inter: the only
-     10px in the stylesheet, and the only place a figure was set in the body
-     font, which is what made the legend read as a different program. */
+  /* Numbers, so IBM Plex Mono at 12px like every other number in the
+     panel -- .mins, .itin .when, .itin .sub. It was once 10px in the body
+     face: the only 10px in the stylesheet, and the only place a figure was
+     set in the body font, which is what made the legend read as a different
+     program. */
   .legendLabels{display:flex;justify-content:space-between;margin-top:var(--space-2);
-    font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-muted);}
+    font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-muted);
+    font-variant-numeric:tabular-nums;}
 
-  .stat{display:flex;justify-content:space-between;gap:var(--space-3);font-size:var(--text-base);padding:var(--space-2) 0;}
+  .stat{display:flex;justify-content:space-between;gap:var(--space-3);font-size:var(--text-ui);padding:var(--space-2) 0;}
   .stat span{color:var(--color-text-muted);}
-  .stat b{font-family:var(--font-mono);font-weight:var(--weight-medium);text-align:right;}
+  .stat b{font-family:var(--font-mono);font-weight:var(--weight-regular);text-align:right;
+    font-variant-numeric:tabular-nums;}
 
-  button{background:var(--color-accent-subtle);color:var(--color-accent);border:1px solid transparent;
+  /* Ink, not accent, on the accent fill: the light theme's accent is 4.3:1
+     on its own subtle fill, under AA; the ink is 11.9:1. */
+  button{background:var(--color-accent-subtle);color:var(--color-text-primary);border:1px solid transparent;
     padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);font-weight:var(--weight-semibold);
-    font-size:var(--text-base);cursor:pointer;width:100%;margin-top:var(--space-1);
+    font-size:var(--text-ui);cursor:pointer;width:100%;margin-top:var(--space-1);
     transition:background var(--duration) ease;font-family:inherit;}
   button:hover{background:var(--color-accent-subtle-hover);}
-  button.secondary{background:transparent;border:1px solid var(--color-border-strong);color:var(--color-text-primary);}
+  button.secondary{background:transparent;border:1px solid var(--color-border-control);color:var(--color-text-primary);}
   button.secondary:hover{border-color:var(--color-text-muted);}
 
-  .steps{list-style:none;margin:0 0 var(--space-4);padding:0;font-size:var(--text-base);}
+  .steps{list-style:none;margin:0 0 var(--space-4);padding:0;font-size:var(--text-ui);}
   .steps li{position:relative;padding:var(--space-2) 0 var(--space-2) var(--space-4);
     line-height:var(--leading-normal);color:var(--color-text-primary);}
   .steps li::before{content:'';position:absolute;left:0;top:14px;width:5px;height:5px;
     border-radius:50%;background:var(--color-accent);}
   .steps li:not(:last-child){border-bottom:1px solid var(--color-border);}
-  .mins{color:var(--color-accent);font-family:var(--font-mono);font-size:var(--text-xs);}
+  .mins{color:var(--color-accent);font-family:var(--font-mono);font-size:var(--text-xs);
+    font-variant-numeric:tabular-nums;}
 
   footer{margin-top:var(--space-6);font-size:var(--text-xs);color:var(--color-text-muted);
     border-top:1px solid var(--color-border);padding-top:var(--space-4);line-height:var(--leading-relaxed);max-width:820px;}
@@ -210,13 +235,14 @@
   background:var(--color-surface-subtle);border:1px solid var(--color-border);border-radius:var(--radius-md);
   padding:var(--space-2) var(--space-3);color:var(--color-text-primary);font:inherit;
   transition:border-color var(--duration-fast),background var(--duration-fast);}
-.optRow:hover{background:var(--color-surface-subtle);border-color:var(--color-border-strong);}
+.optRow:hover{background:var(--color-surface-subtle);border-color:var(--color-border-control);}
 .optRow.sel{border-color:var(--color-accent);background:var(--color-surface-selected);}
 .optRow.base{background:var(--color-bg);border-style:dashed;}
 
 .optHead{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-2);}
-.optWhen{font-family:var(--font-mono);font-size:var(--text-xl);font-weight:var(--weight-semibold);}
-.optDur{font-size:var(--text-base);color:var(--color-text-muted);white-space:nowrap;}
+.optWhen{font-family:var(--font-mono);font-size:var(--text-ui-lg);font-weight:var(--weight-semibold);
+  font-variant-numeric:tabular-nums;}
+.optDur{font-size:var(--text-ui);font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--color-text-muted);white-space:nowrap;}
 .optMeta{margin-top:3px;font-size:var(--text-xs);color:var(--color-text-muted);
   display:flex;align-items:center;gap:var(--space-1);flex-wrap:wrap;}
 
@@ -227,7 +253,7 @@
    Walk and drive are the map's own grey for a walking leg, with light ink. */
 .badge{display:inline-block;padding:1px var(--space-2);border-radius:var(--radius-sm);font-size:var(--text-2xs);
   font-weight:var(--weight-semibold);font-family:var(--font-mono);}
-.badge.walk,.badge.drive{background:#4a5a63;color:#e8eef1;}   /* data: the map's walk grey */
+.badge.walk,.badge.drive{background:#5A6A5A;color:#EEF3EE;}   /* data: the map's walk grey */
 .arrow{color:var(--color-text-subtle);font-size:var(--text-2xs);}
 
 .tag{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);
@@ -241,31 +267,31 @@
 .itin{margin:var(--space-3) 0 var(--space-3);padding:0;list-style:none;position:relative;}
 .itin::before{content:'';position:absolute;left:5px;top:var(--space-2);bottom:var(--space-2);
   width:2px;background:var(--color-track);}
-.itin li{position:relative;padding:var(--space-2) 0 var(--space-2) var(--space-5);font-size:var(--text-base);line-height:var(--leading-snug);}
+.itin li{position:relative;padding:var(--space-2) 0 var(--space-2) var(--space-5);font-size:var(--text-ui);line-height:var(--leading-snug);}
 .itin li::before{content:'';position:absolute;left:0;top:var(--space-3);width:12px;height:12px;
-  border-radius:50%;background:var(--color-surface);border:2px solid var(--color-border-strong);}
+  border-radius:50%;background:var(--color-surface);border:2px solid var(--color-border-control);}
 .itin li.ride::before{border-color:var(--color-accent);background:var(--color-accent);}
 .itin li.waitStep::before{border-color:var(--color-warning);}
 .itin .when{font-family:var(--font-mono);color:var(--color-accent);
-  font-size:var(--text-xs);margin-right:var(--space-2);}
+  font-size:var(--text-xs);margin-right:var(--space-2);font-variant-numeric:tabular-nums;}
 .itin .sub{color:var(--color-text-muted);font-size:var(--text-xs);}
 .optNote{font-size:var(--text-xs);color:var(--color-text-muted);margin:calc(-1 * var(--space-1)) 0 var(--space-3);font-style:italic;}
 /* What the trip card says when there is no trip to show. */
-.cc-note{font-size:var(--text-sm);color:var(--color-neutral);}
+.cc-note{font-size:var(--text-ui);color:var(--color-neutral);}
 
 /* Leave now / leave at, and the location card ------------------------------
    A segmented control rather than a checkbox: the two states are equally
    valid choices, and "leave now" should not read as the absence of a
    setting. */
-.segbar{display:flex;gap:0;border:1px solid var(--color-border-strong);border-radius:var(--radius-md);overflow:hidden;}
+.segbar{display:flex;gap:0;border:1px solid var(--color-border-control);border-radius:var(--radius-md);overflow:hidden;}
 .seg{flex:1;background:var(--color-surface-subtle);border:0;color:var(--color-text-muted);font:inherit;
-  font-size:var(--text-base);padding:var(--space-2);cursor:pointer;margin:0;border-radius:0;}
+  font-size:var(--text-ui);padding:var(--space-2);cursor:pointer;margin:0;border-radius:0;}
 .seg:hover{background:var(--color-surface-subtle);color:var(--color-text-primary);}
-.seg + .seg{border-left:1px solid var(--color-border-strong);}
+.seg + .seg{border-left:1px solid var(--color-border-control);}
 .seg.sel{background:var(--color-surface-selected);color:var(--color-text-primary);font-weight:var(--weight-semibold);}
 input[type=time]{background:var(--color-surface-subtle);color:var(--color-text-primary);
-  border:1px solid var(--color-border-strong);border-radius:var(--radius-md);padding:3px var(--space-2);
-  font-family:var(--font-mono);font-size:var(--text-base);}
+  border:1px solid var(--color-border-control);border-radius:var(--radius-md);padding:3px var(--space-2);
+  font-family:var(--font-mono);font-size:var(--text-ui);font-variant-numeric:tabular-nums;}
 .hint{font-size:var(--text-xs);color:var(--color-text-muted);line-height:var(--leading-normal);margin-top:var(--space-2);}
 .hint b{color:var(--color-text-primary);font-weight:var(--weight-semibold);}
 .hint ol{margin:var(--space-2) 0 0 var(--space-4);padding:0;}
@@ -280,8 +306,8 @@ input[type=time]{background:var(--color-surface-subtle);color:var(--color-text-p
    is still a true statement about which way the map is drawn. */
 .compass{width:74px;height:74px;margin:var(--space-3) auto 2px;}
 .cRing{fill:var(--color-surface-subtle);stroke:var(--color-border);stroke-width:1.5;}
-.cTick{stroke:var(--color-border-strong);stroke-width:2;stroke-linecap:round;}
-.cLabel{fill:var(--color-text-muted);font-size:var(--text-md);font-weight:var(--weight-bold);text-anchor:middle;
+.cTick{stroke:var(--color-border-control);stroke-width:2;stroke-linecap:round;}
+.cLabel{fill:var(--color-text-muted);font-size:var(--text-ui);font-weight:var(--weight-semibold);text-anchor:middle;
   font-family:var(--font-mono);}
 .cNeedle{fill:var(--color-compass-north);}
 .cTail{fill:var(--color-compass-idle);}
